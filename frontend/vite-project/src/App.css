@@ -1066,6 +1066,78 @@ body {
   letter-spacing: 0.05em;
   padding: 5px 10px;
   border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge-cloud {
+  background: #D97706;
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 5px 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-ai-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #154032;
+  color: #FDE02E;
+  border: 1.5px solid rgba(253, 224, 46, 0.4);
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  margin-top: 14px;
+  box-shadow: 0 4px 14px rgba(17, 46, 36, 0.12);
+}
+
+.btn-ai-help:hover {
+  background: #112E24;
+  border-color: #FDE02E;
+  transform: translateY(-1px);
+}
+
+.ai-response-box {
+  margin-top: 16px;
+  padding: 16px;
+  background: #F8FAF5;
+  border: 1.5px solid #BCD8A6;
+  border-radius: 14px;
+  text-align: left;
+}
+
+.ai-response-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.ai-response-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #112E24;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ai-response-text {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #112E24;
+  white-space: pre-line;
 }
 
 .modal-body {

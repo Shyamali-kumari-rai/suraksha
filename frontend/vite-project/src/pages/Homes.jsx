@@ -5,6 +5,7 @@ import FirstAidCard from "../components/FirstAidCard";
 import EmergencyButton from "../components/EmergencyButton";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { useVoiceAssistant } from "../hooks/useVoiceAssistant";
+import { askSurakshaHybrid } from "../services/ai/hybridRouter";
 
 export default function Homes() {
   const { lang, copy } = useLanguage();
@@ -55,6 +56,51 @@ export default function Homes() {
   const [modalIsSpeaking, setModalIsSpeaking] = useState(false);
   const [modalActiveStep, setModalActiveStep] = useState(-1);
   const modalSpeechRunId = useRef(0);
+
+  // AI Assistant detailed help states
+  const [aiGuideLoading, setAiGuideLoading] = useState(false);
+  const [aiGuideResponse, setAiGuideResponse] = useState(null);
+  const [aiSearchLoading, setAiSearchLoading] = useState(false);
+  const [aiSearchResponse, setAiSearchResponse] = useState(null);
+
+  const handleAskAIGuide = async () => {
+    if (!activeGuide) return;
+    setAiGuideLoading(true);
+    try {
+      const promptQuery = isHi
+        ? `${activeGuide.hi} के लिए विस्तृत प्राथमिक उपचार कदम और सावधानियां बताएं`
+        : `Detailed first aid steps and critical precautions for ${activeGuide.en}`;
+      const res = await askSurakshaHybrid(promptQuery);
+      setAiGuideResponse(res);
+    } catch (err) {
+      setAiGuideResponse({
+        source: "ON-DEVICE",
+        badgeClass: "badge-ondevice",
+        badgeText: "ON-DEVICE • AI",
+        text: "Keep the patient calm and in a safe position.\nIn a serious emergency, call 112 immediately."
+      });
+    } finally {
+      setAiGuideLoading(false);
+    }
+  };
+
+  const handleAskAISearch = async () => {
+    const query = searchQuery || localInput || "Emergency first aid help";
+    setAiSearchLoading(true);
+    try {
+      const res = await askSurakshaHybrid(query);
+      setAiSearchResponse(res);
+    } catch (err) {
+      setAiSearchResponse({
+        source: "ON-DEVICE",
+        badgeClass: "badge-ondevice",
+        badgeText: "ON-DEVICE • AI",
+        text: "Keep the patient calm and in a safe position.\nIn a serious emergency, call 112 immediately."
+      });
+    } finally {
+      setAiSearchLoading(false);
+    }
+  };
 
   // FAQ accordion open states
   const [openFaq, setOpenFaq] = useState({ 0: false, 1: false, 2: false });
@@ -154,6 +200,7 @@ export default function Homes() {
   // Close active guide modal and stop speech
   const handleCloseGuide = () => {
     stopModalSpeech();
+    setAiGuideResponse(null);
     closeGuide();
   };
 
@@ -383,15 +430,38 @@ export default function Homes() {
                 <EmergencyButton number="112" variant="solid" label="Call 112 Now" />
                 <button
                   type="button"
+                  className="btn-ai-help"
+                  style={{ width: "auto", margin: 0 }}
+                  onClick={handleAskAISearch}
+                  disabled={aiSearchLoading}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                  <span>{aiSearchLoading ? "Asking AI..." : "Ask AI for detailed help"}</span>
+                </button>
+                <button
+                  type="button"
                   className="btn-reset-search"
                   onClick={() => {
                     handleClearSearch();
                     setFilter("all");
+                    setAiSearchResponse(null);
                   }}
                 >
                   {copy.showAllBtn || "Show All Guides"}
                 </button>
               </div>
+
+              {aiSearchResponse && (
+                <div className="ai-response-box" style={{ maxWidth: "620px", margin: "18px auto 0" }}>
+                  <div className="ai-response-header">
+                    <span className="ai-response-title">AI Assistant Guidance</span>
+                    <span className={aiSearchResponse.badgeClass}>{aiSearchResponse.badgeText}</span>
+                  </div>
+                  <p className="ai-response-text">{aiSearchResponse.text}</p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -582,6 +652,29 @@ export default function Homes() {
                   );
                 })}
               </ol>
+
+              {/* Ask AI for detailed help */}
+              <button
+                type="button"
+                className="btn-ai-help"
+                onClick={handleAskAIGuide}
+                disabled={aiGuideLoading}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                </svg>
+                <span>{aiGuideLoading ? "Asking AI..." : "Ask AI for detailed help"}</span>
+              </button>
+
+              {aiGuideResponse && (
+                <div className="ai-response-box">
+                  <div className="ai-response-header">
+                    <span className="ai-response-title">AI Assistant Guidance</span>
+                    <span className={aiGuideResponse.badgeClass}>{aiGuideResponse.badgeText}</span>
+                  </div>
+                  <p className="ai-response-text">{aiGuideResponse.text}</p>
+                </div>
+              )}
 
               <EmergencyButton
                 number="112"
