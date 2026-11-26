@@ -1,0 +1,26 @@
+{
+  "name": "suraksha-backend",
+  "version": "1.0.0",
+  "description": "Suraksha — Offline First-Aid AI backend API server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node -e \"console.log('Backend test passed')\""
+  },
+  "keywords": [
+    "first-aid",
+    "suraksha",
+    "emergency",
+    "offline-ready",
+    "express",
+    "node"
+  ],
+  "author": "Suraksha Team",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}

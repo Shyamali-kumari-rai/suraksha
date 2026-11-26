@@ -1,0 +1,16 @@
+{
+  "name": "Suraksha — Offline First-Aid AI",
+  "short_name": "Suraksha",
+  "description": "Offline first-aid AI for India in Hindi and English. Instant emergency and daily care steps with zero internet.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ECEFE4",
+  "theme_color": "#112E24",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
