@@ -3,6 +3,13 @@ import { useLanguage } from "../context/LanguageContext";
 import { GUIDES, I18N } from "../utils/data";
 import { askSurakshaHybrid } from "../services/ai/hybridRouter";
 import MadadLocationTracker from "../components/MadadLocationTracker";
+import AshaDoctorCard from "../components/AshaDoctorCard";
+import AshaDoctorModal from "../components/AshaDoctorModal";
+import {
+  loadAshaContacts,
+  saveAshaContacts,
+  getPrimaryAshaContact
+} from "../utils/ashaStorage";
 
 export default function Homes({ isAboutFaqOpen = false, onCloseAboutFaq = () => {} }) {
   const { lang, copy } = useLanguage();
@@ -33,6 +40,80 @@ export default function Homes({ isAboutFaqOpen = false, onCloseAboutFaq = () => 
     toastTimeoutRef.current = setTimeout(() => {
       setToastMsg("");
     }, 2600);
+  };
+
+  // ================= ASHA / DOCTOR QUICK-CALL =================
+  const [ashaContacts, setAshaContacts] = useState(() => loadAshaContacts());
+  const [ashaModalOpen, setAshaModalOpen] = useState(false);
+  const [editingAshaContact, setEditingAshaContact] = useState(null);
+
+  const primaryAshaContact = getPrimaryAshaContact(ashaContacts);
+
+  const handleOpenAddAsha = () => {
+    if (ashaContacts.length >= 2) {
+      showToast(
+        copy.ashaErrMax ||
+          "You can save up to 2 contacts (1 ASHA Worker + 1 Local Doctor)."
+      );
+      return;
+    }
+    setEditingAshaContact(null);
+    setAshaModalOpen(true);
+  };
+
+  const handleOpenEditAsha = (contact) => {
+    setEditingAshaContact(contact);
+    setAshaModalOpen(true);
+  };
+
+  const handleCloseAshaModal = () => {
+    setAshaModalOpen(false);
+    setEditingAshaContact(null);
+  };
+
+  const handleSaveAshaContact = (contactData) => {
+    const wasEditing = Boolean(editingAshaContact);
+    setAshaContacts((prev) => {
+      const isEditing = prev.some((c) => c.id === contactData.id);
+      let next;
+      if (isEditing) {
+        next = prev.map((c) => (c.id === contactData.id ? contactData : c));
+      } else {
+        next = [...prev, contactData].slice(0, 2);
+      }
+
+      if (contactData.isPrimary) {
+        next = next.map((c) => ({
+          ...c,
+          isPrimary: c.id === contactData.id
+        }));
+      } else if (next.length > 0 && !next.some((c) => c.isPrimary)) {
+        next[0] = { ...next[0], isPrimary: true };
+      }
+
+      saveAshaContacts(next);
+      return next;
+    });
+
+    setAshaModalOpen(false);
+    setEditingAshaContact(null);
+    showToast(
+      wasEditing
+        ? copy.ashaToastUpdated || "ASHA / Doctor contact updated."
+        : copy.ashaToastSaved || "ASHA / Doctor contact saved offline."
+    );
+  };
+
+  const handleDeleteAshaContact = (contactId) => {
+    setAshaContacts((prev) => {
+      const next = prev.filter((c) => c.id !== contactId);
+      if (next.length > 0 && !next.some((c) => c.isPrimary)) {
+        next[0] = { ...next[0], isPrimary: true };
+      }
+      saveAshaContacts(next);
+      return next;
+    });
+    showToast(copy.ashaToastDeleted || "Contact removed.");
   };
 
   // Helper getters for guides
@@ -749,6 +830,14 @@ export default function Homes({ isAboutFaqOpen = false, onCloseAboutFaq = () => 
                     <a className="btn red" href="tel:112">
                       📞 {isHi ? "112 बुलाएँ" : "Call 112"}
                     </a>
+                    {primaryAshaContact && (
+                      <a
+                        className="btn asha-quick-btn"
+                        href={`tel:${primaryAshaContact.phone}`}
+                      >
+                        🩺 {copy.ashaQuickCallPrefix || "Call ASHA / Doctor"} ({primaryAshaContact.name})
+                      </a>
+                    )}
                     <button
                       type="button"
                       className="btn solid"
@@ -798,6 +887,14 @@ export default function Homes({ isAboutFaqOpen = false, onCloseAboutFaq = () => 
                     <a className="btn red" href="tel:112">
                       📞 Call 112
                     </a>
+                    {primaryAshaContact && (
+                      <a
+                        className="btn asha-quick-btn"
+                        href={`tel:${primaryAshaContact.phone}`}
+                      >
+                        🩺 {copy.ashaQuickCallPrefix || "Call ASHA / Doctor"} ({primaryAshaContact.name})
+                      </a>
+                    )}
                     <a className="btn" href="#guides">
                       {isHi ? "सभी गाइड देखें" : "See all guides"}
                     </a>
@@ -1077,6 +1174,14 @@ export default function Homes({ isAboutFaqOpen = false, onCloseAboutFaq = () => 
                 <a className="btn red" href="tel:112">
                   📞 {isHi ? "112 बुलाएँ" : "Call 112"}
                 </a>
+                {primaryAshaContact && (
+                  <a
+                    className="btn asha-quick-btn"
+                    href={`tel:${primaryAshaContact.phone}`}
+                  >
+                    🩺 {copy.ashaQuickCallPrefix || "Call ASHA / Doctor"} ({primaryAshaContact.name})
+                  </a>
+                )}
                 <button
                   type="button"
                   className="btn solid"
@@ -1240,6 +1345,15 @@ export default function Homes({ isAboutFaqOpen = false, onCloseAboutFaq = () => 
             <h2>{copy.helpH || "India Emergency Helplines"}</h2>
             <p>{copy.helpP || "Tap any number to call. All are free, 24×7."}</p>
           </div>
+
+          <AshaDoctorCard
+            contacts={ashaContacts}
+            copy={copy}
+            onAddClick={handleOpenAddAsha}
+            onEditClick={handleOpenEditAsha}
+            onDeleteClick={handleDeleteAshaContact}
+          />
+
           <div className="phones">
             <div className="phone">
               <div className="num">112</div>
@@ -1471,6 +1585,17 @@ export default function Homes({ isAboutFaqOpen = false, onCloseAboutFaq = () => 
           </div>
         </div>
       )}
+
+      {/* ================= ASHA / DOCTOR MODAL ================= */}
+      <AshaDoctorModal
+        isOpen={ashaModalOpen}
+        editingContact={editingAshaContact}
+        existingContacts={ashaContacts}
+        copy={copy}
+        onClose={handleCloseAshaModal}
+        onSave={handleSaveAshaContact}
+        onToast={showToast}
+      />
 
       {/* ================= TOAST NOTIFICATION ================= */}
       <div className={`toast ${toastMsg ? "show" : ""}`} id="toast" role="status">

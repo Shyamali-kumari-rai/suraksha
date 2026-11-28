@@ -2115,7 +2115,6 @@ footer b {
   }
 }
 
-
 /* ================= MORE GUIDES BUTTON & MODAL ================= */
 .guides-more-wrap {
   display: flex;
@@ -2142,4 +2141,490 @@ footer b {
 
 .guides-modal-sheet {
   max-width: 1040px;
+}
+
+/* ================= ASHA / DOCTOR QUICK-CALL ================= */
+.asha-card {
+  background: linear-gradient(135deg, #FFFEF6 0%, #EFF8D2 100%);
+  border: 1px solid #fff;
+  outline: 1.5px dashed rgba(185, 151, 91, 0.45);
+  outline-offset: -8px;
+  border-radius: 28px 28px 28px 10px;
+  box-shadow: 0 18px 44px rgba(20, 54, 32, 0.08);
+  padding: 26px;
+  margin-bottom: 22px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.asha-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.asha-card-title-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.asha-card-icon {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 48% 52% 55% 45% / 52% 48% 52% 48%;
+  background: var(--dark);
+  color: #DDEFB2;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  box-shadow: 0 8px 18px rgba(20, 54, 32, 0.16);
+}
+
+.asha-card h3 {
+  font-size: 26px;
+  color: var(--dark);
+  margin: 0;
+}
+
+.asha-card-sub {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.asha-empty {
+  margin-top: 18px;
+  background: #FFFEF9;
+  border: 1.5px dashed #D9D2A8;
+  border-radius: 20px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.asha-empty-text {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14.5px;
+  line-height: 1.6;
+  flex: 1 1 300px;
+}
+
+.asha-primary-cta {
+  background: var(--dark);
+  color: #fff;
+  border: 0;
+  border-radius: 999px;
+  padding: 13px 22px;
+  min-height: 44px;
+  font-weight: 800;
+  font-size: 15px;
+  box-shadow: 0 10px 22px rgba(20, 54, 32, 0.18);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  white-space: nowrap;
+}
+
+.asha-primary-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(20, 54, 32, 0.22);
+}
+
+.asha-list {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 14px;
+}
+
+.asha-contact-item {
+  background: #fff;
+  border: 1px solid rgba(20, 54, 32, 0.1);
+  border-radius: 22px 22px 22px 8px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  box-shadow: 0 10px 24px rgba(20, 54, 32, 0.06);
+  min-width: 0;
+}
+
+.asha-contact-info {
+  min-width: 0;
+}
+
+.asha-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.asha-role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.asha-role-badge.asha {
+  background: #E6F6EC;
+  color: #14532D;
+}
+
+.asha-role-badge.doctor {
+  background: #FFF3D6;
+  color: #7A4A00;
+}
+
+.asha-primary-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  background: var(--lime3);
+  color: var(--dark);
+  border: 1px solid rgba(20, 54, 32, 0.14);
+}
+
+.asha-contact-name {
+  font-family: var(--serif-display);
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--dark);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.asha-contact-loc {
+  margin-top: 4px;
+  font-size: 13.5px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.asha-contact-phone {
+  margin-top: 6px;
+  font-size: 15.5px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+
+.asha-contact-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.asha-call-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-weight: 900;
+  font-size: 15.5px;
+  text-decoration: none;
+  box-shadow: 0 10px 22px rgba(230, 58, 46, 0.24);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.asha-call-btn:hover {
+  background: var(--red-dark);
+  transform: translateY(-1px);
+}
+
+.asha-secondary-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.asha-subtle-btn {
+  flex: 1 1 auto;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #FFFEF8;
+  color: var(--dark);
+  font-weight: 700;
+  font-size: 13.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.asha-subtle-btn:hover {
+  background: var(--lime3);
+}
+
+.asha-subtle-btn.danger {
+  color: #8F150C;
+}
+
+.asha-subtle-btn.danger:hover {
+  background: #FDE3E0;
+}
+
+.asha-footer-action {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.asha-add-second-btn {
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1.5px dashed var(--dark);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--dark);
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.asha-add-second-btn:hover {
+  background: #fff;
+}
+
+/* Quick-call button inside active emergency guide results */
+.btn.asha-quick-btn {
+  background: var(--dark);
+  border-color: var(--dark);
+  color: #fff;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
+.btn.asha-quick-btn:hover {
+  background: var(--dark2);
+}
+
+/* ASHA / Doctor Modal — matches About & FAQ modal styling */
+.asha-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(18, 42, 27, 0.58);
+  backdrop-filter: blur(6px);
+  z-index: 320;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.asha-modal {
+  position: relative;
+  width: min(500px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--bg);
+  background-image: radial-gradient(rgba(20, 54, 32, .055) 1px, transparent 1px),
+    radial-gradient(rgba(185, 151, 91, .07) 1px, transparent 1px);
+  background-size: 22px 22px, 34px 34px;
+  border: 1.5px solid #fff;
+  outline: 1px dashed rgba(185, 151, 91, 0.35);
+  outline-offset: -10px;
+  border-radius: 30px;
+  box-shadow: 0 28px 70px rgba(10, 26, 16, 0.35);
+  padding: 26px 24px;
+}
+
+.asha-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.asha-modal-header h3 {
+  font-size: 24px;
+  color: var(--dark);
+  margin: 0;
+}
+
+.asha-modal-close {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--dark);
+  font-size: 16px;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+  flex: none;
+  box-shadow: 0 4px 12px rgba(20, 54, 32, 0.12);
+}
+
+.asha-modal-close:hover {
+  background: var(--lime3);
+}
+
+.asha-modal-form {
+  display: grid;
+  gap: 14px;
+}
+
+.asha-field {
+  display: grid;
+  gap: 6px;
+}
+
+.asha-label {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--dark);
+}
+
+.asha-field input[type="text"],
+.asha-field input[type="tel"] {
+  width: 100%;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 16px;
+  background: #fff;
+  color: var(--ink);
+  min-height: 46px;
+}
+
+.asha-field input:focus {
+  outline: 2px solid var(--dark);
+  border-color: transparent;
+}
+
+.asha-role-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.asha-role-opt {
+  min-height: 46px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1.5px solid var(--line);
+  background: #fff;
+  color: var(--dark);
+  font-weight: 800;
+  font-size: 14.5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.asha-role-opt.active {
+  background: var(--lime3);
+  border-color: var(--dark);
+  box-shadow: 0 4px 12px rgba(20, 54, 32, 0.1);
+}
+
+.asha-role-opt:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.asha-role-taken {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.asha-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.asha-checkbox-row input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  accent-color: var(--dark);
+  flex: none;
+}
+
+.asha-form-error {
+  background: #FDE3E0;
+  color: #8F150C;
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.asha-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.asha-modal-actions .btn {
+  min-height: 44px;
+}
+
+@media (max-width: 640px) {
+  .asha-card {
+    padding: 20px 16px;
+  }
+  .asha-list {
+    grid-template-columns: 1fr;
+  }
+  .asha-primary-cta {
+    width: 100%;
+    text-align: center;
+    white-space: normal;
+  }
+  .asha-modal-backdrop {
+    padding: 12px;
+  }
+  .asha-modal {
+    padding: 20px 16px;
+    border-radius: 24px;
+  }
+  .asha-modal-actions {
+    flex-direction: column-reverse;
+  }
+  .asha-modal-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
