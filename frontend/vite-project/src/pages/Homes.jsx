@@ -15,14 +15,20 @@ export default function Homes({ isAboutFaqOpen = false, onCloseAboutFaq = () => 
   const { lang, copy } = useLanguage();
   const isHi = lang === "hi";
 
+  const [isAllGuidesOpen, setIsAllGuidesOpen] = useState(false);
+  const [modalGuideSearch, setModalGuideSearch] = useState("");
+
   useEffect(() => {
-    if (!isAboutFaqOpen) return;
+    if (!isAboutFaqOpen && !isAllGuidesOpen) return;
     const onKeyDown = (e) => {
-      if (e.key === "Escape") onCloseAboutFaq();
+      if (e.key === "Escape") {
+        if (isAboutFaqOpen) onCloseAboutFaq();
+        if (isAllGuidesOpen) setIsAllGuidesOpen(false);
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isAboutFaqOpen, onCloseAboutFaq]);
+  }, [isAboutFaqOpen, onCloseAboutFaq, isAllGuidesOpen]);
 
   // Toast notification state
   const [toastMsg, setToastMsg] = useState("");
@@ -1089,7 +1095,7 @@ export default function Homes({ isAboutFaqOpen = false, onCloseAboutFaq = () => 
 
           <div className="grid" id="guideGrid">
             {filteredGuides.length > 0 ? (
-              filteredGuides.map((g) => (
+              (searchGuideQuery.trim() ? filteredGuides : filteredGuides.slice(0, 3)).map((g) => (
                 <button
                   key={g.id}
                   type="button"
@@ -1121,6 +1127,23 @@ export default function Homes({ isAboutFaqOpen = false, onCloseAboutFaq = () => 
               </p>
             )}
           </div>
+
+          {!searchGuideQuery.trim() && filteredGuides.length > 3 && (
+            <div className="guides-more-wrap">
+              <button
+                type="button"
+                className="guides-more-btn"
+                onClick={() => {
+                  setModalGuideSearch("");
+                  setIsAllGuidesOpen(true);
+                }}
+              >
+                {isHi
+                  ? `＋ और देखें (सभी ${filteredGuides.length} गाइड)`
+                  : `＋ More (View All ${filteredGuides.length} Guides)`}
+              </button>
+            </div>
+          )}
 
           {/* Inline Expanded Guide Detail */}
           {activeGuideObj && (
@@ -1383,6 +1406,91 @@ export default function Homes({ isAboutFaqOpen = false, onCloseAboutFaq = () => 
           </div>
         </div>
       </section>
+
+      {/* ================= ALL EMERGENCY GUIDES MODAL ================= */}
+      {isAllGuidesOpen && (
+        <div
+          className="about-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="allGuidesModalHeading"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsAllGuidesOpen(false);
+          }}
+        >
+          <div className="about-modal-sheet guides-modal-sheet">
+            <button
+              type="button"
+              className="about-modal-close"
+              onClick={() => setIsAllGuidesOpen(false)}
+              aria-label={isHi ? "बंद करें" : "Close All Guides"}
+            >
+              ✕
+            </button>
+            <div className="sec-head" style={{ marginBottom: "18px", paddingTop: "4px" }}>
+              <h2 id="allGuidesModalHeading">
+                {isHi ? `सभी ${GUIDES.length} आपात गाइड` : `All ${GUIDES.length} Emergency Guides`}
+              </h2>
+              <p>
+                {copy.gP ||
+                  "Tap any emergency for step-by-step first aid, what NOT to do, and when to call 112. Everything works offline."}
+              </p>
+            </div>
+
+            <div className="toolbar" style={{ marginBottom: "18px" }}>
+              <input
+                type="search"
+                value={modalGuideSearch}
+                onChange={(e) => setModalGuideSearch(e.target.value)}
+                placeholder={isHi ? "गाइड खोजें — जलना, मिर्गी, अस्थमा…" : "Search all guides — burn, mirgi, asthma…"}
+                autoFocus
+              />
+            </div>
+
+            <div className="grid">
+              {GUIDES.filter((g) => {
+                if (!modalGuideSearch.trim()) return true;
+                const q = modalGuideSearch.toLowerCase();
+                return (
+                  g.en.toLowerCase().includes(q) ||
+                  g.hi.toLowerCase().includes(q) ||
+                  g.enD.toLowerCase().includes(q) ||
+                  g.hiD.toLowerCase().includes(q) ||
+                  g.kw.some((k) => k.toLowerCase().includes(q))
+                );
+              }).map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  className="gcard"
+                  onClick={() => {
+                    setIsAllGuidesOpen(false);
+                    handleSelectGuide(g.id, true);
+                  }}
+                >
+                  <span className="gicon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                  </span>
+                  <h3>{getGuideTitle(g)}</h3>
+                  <p>{getGuideDesc(g)}</p>
+                  <div className="meta">
+                    {isHi ? "स्टेप्स देखें →" : "View steps →"} &nbsp;•&nbsp;{" "}
+                    {g.sev === "high"
+                      ? isHi
+                        ? "गंभीर"
+                        : "Serious"
+                      : isHi
+                      ? "मध्यम"
+                      : "Moderate"}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================= ABOUT & FAQ MODAL ================= */}
       {isAboutFaqOpen && (
