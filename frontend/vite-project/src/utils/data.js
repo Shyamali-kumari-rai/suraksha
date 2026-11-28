@@ -318,6 +318,132 @@ export const GUIDES = [
     ],
     enDont: 'Do NOT make the person vomit unless a doctor/helpline tells you to, and do NOT give milk, lemon or home remedies as an “antidote”.',
     hiDont: 'डॉक्टर/हेल्पलाइन कहे बिना उल्टी न कराएँ, और “इलाज” के नाम पर दूध, नींबू या घरेलू नुस्खे न दें।'
+  },
+  {
+    id: 'mirgi',
+    sev: 'med',
+    en: 'Mirgi (Seizure)',
+    hi: 'मिर्गी का दौरा',
+    cat: 'neuro',
+    kw: ['mirgi', 'मिर्गी', 'mirgi ka daura', 'seizure', 'pakdo mat', 'muh me kuch mat daalo', 'jhatka', 'दौरा'],
+    enD: 'Patient ko pakdo mat, muh mein kuch mat daalo. Keep them safe on their side until the fit stops.',
+    hiD: 'मरीज़ को पकड़ें नहीं और मुँह में कुछ न डालें। दौरा रुकने तक उन्हें करवट पर सुरक्षित रखें।',
+    enSteps: [
+      'Turn the patient gently onto their side so the airway stays clear.',
+      'Move nearby dangerous or sharp objects away from the patient.',
+      'Place something soft under their head to cushion it.',
+      'Note the exact time the seizure started.',
+      'Call 112 immediately if the seizure lasts more than 5 minutes or breathing stops.'
+    ],
+    hiSteps: [
+      'मरीज़ को धीरे से करवट (साइड) में लिटाएँ ताकि साँस की नली खुली रहे।',
+      'आसपास की खतरनाक या सख़्त चीज़ें हटा दें।',
+      'सिर के नीचे कोई नरम चीज़ (कपड़ा या तकिया) रखें।',
+      'दौरा शुरू होने का समय नोट करें।',
+      'अगर दौरा 5 मिनट से ज़्यादा चले या साँस रुक जाए तो तुरंत 112 पर कॉल करें।'
+    ],
+    enDont: 'Do NOT hold the patient down, put anything in their mouth, or give them water.',
+    hiDont: 'मरीज़ को ज़बरदस्ती पकड़ें नहीं, मुँह में कुछ न डालें और पानी न पिलाएँ।'
+  },
+  {
+    id: 'asthma',
+    sev: 'high',
+    en: 'Asthma Attack',
+    hi: 'अस्थमा का दौरा (दमा)',
+    cat: 'airway',
+    kw: ['asthma', 'dama', 'दमा', 'अस्थमा', 'inhaler', 'saans phoolna', 'wheezing', 'breathless', 'puff', 'asthma attack'],
+    enD: 'Breathing becomes tight or wheezy — know how to use an inhaler calmly and quickly.',
+    hiD: 'साँस फूलना या सीटी जैसी आवाज़ आना — जानें कि इनहेलर का इस्तेमाल सही तरीके से कैसे करें।',
+    enSteps: [
+      'Make the patient sit upright and stay calm.',
+      'Shake the inhaler well before using.',
+      'Take 1 puff and hold the breath for 10 seconds.',
+      'After 1 minute, take a second puff if needed.',
+      'If breathing still does not improve, call 112 immediately.'
+    ],
+    hiSteps: [
+      'मरीज़ को सीधा बिठाएँ — शांत रहें और उन्हें आराम से साँस लेने कहें।',
+      'इस्तेमाल करने से पहले इनहेलर को अच्छी तरह हिलाएँ।',
+      'एक पफ़ लें और 10 सेकंड तक साँस रोककर रखें।',
+      'ज़रूरत हो तो 1 मिनट बाद दूसरा पफ़ लें।',
+      'अगर फिर भी साँस ठीक न आए तो तुरंत 112 पर कॉल करें।'
+    ],
+    enDont: 'Do NOT make the patient lie down flat, and do NOT panic.',
+    hiDont: 'मरीज़ को सीधा न लिटाएँ और घबराएँ नहीं।'
+  },
+  {
+    id: 'lowsugar',
+    sev: 'high',
+    en: 'Low Sugar (Diabetes)',
+    hi: 'लो शुगर (डायबिटीज़)',
+    cat: 'metabolic',
+    kw: ['low sugar', 'sugar', 'diabetes', 'hypoglycemia', 'pasina', 'kaanpna', 'meetha', 'glucose', 'शुगर', 'डायबिटीज'],
+    enD: 'Sudden sweating and shaking (pasina + kaanpna) means blood sugar has dropped — give something sweet right away.',
+    hiD: 'अचानक पसीना आना और काँपना कम शुगर का संकेत है — होश में हों तो तुरंत मीठा दें।',
+    enSteps: [
+      'If the patient is conscious, give something sweet immediately — juice, glucose, or sugar water.',
+      'Wait and check again after 15 minutes.',
+      'If they are not better, give something sweet again.',
+      'If the patient becomes unconscious, do NOT feed or give any drink, and call 112 immediately.'
+    ],
+    hiSteps: [
+      'अगर मरीज़ होश में है तो तुरंत कुछ मीठा दें — जूस, ग्लूकोज़ या चीनी वाला पानी।',
+      '15 मिनट बाद फिर जाँच करें।',
+      'अगर हालत बेहतर न हो तो दोबारा मीठा दें।',
+      'अगर मरीज़ बेहोश हो जाए तो कुछ भी न खिलाएँ/पिलाएँ और तुरंत 112 पर कॉल करें।'
+    ],
+    enDont: 'Do NOT feed an unconscious patient, and do NOT give insulin.',
+    hiDont: 'बेहोश मरीज़ को कुछ न खिलाएँ/पिलाएँ और इंसुलिन न दें।'
+  },
+  {
+    id: 'zeher',
+    sev: 'high',
+    en: 'Zeher Kha Liya (Poisoning)',
+    hi: 'ज़हर खा लिया',
+    cat: 'poison',
+    kw: ['zeher', 'zeher kha liya', 'ज़हर खा लिया', 'zahar', 'ulti mat karwao', 'packet', 'poisoning', 'chemical', 'pesticide'],
+    enD: 'Ulti mat karwao, packet saath le jao — keep the container and get medical help fast.',
+    hiD: 'उल्टी न करवाएँ, ज़हर का पैकेट/डिब्बा साथ लेकर तुरंत अस्पताल जाएँ।',
+    enSteps: [
+      'Stay calm and keep the poison packet or container with you.',
+      'Do NOT give the patient anything to eat or drink.',
+      'Call 112 immediately and tell them the name of the poison.',
+      'Take the poison packet or container along when going to the hospital.'
+    ],
+    hiSteps: [
+      'शांत रहें और ज़हर का पैकेट या डिब्बा संभालकर साथ रखें।',
+      'मरीज़ को कुछ भी खाने या पीने को न दें।',
+      'तुरंत 112 पर कॉल करें और ज़हर का नाम बताएँ।',
+      'अस्पताल ले जाते समय ज़हर का पैकेट/डिब्बा साथ लेकर जाएँ।'
+    ],
+    enDont: 'Do NOT force vomiting (ulti), and do NOT force milk or water.',
+    hiDont: 'ज़बरदस्ती उल्टी न करवाएँ और दूध या पानी ज़बरदस्ती न पिलाएँ।'
+  },
+  {
+    id: 'eye',
+    sev: 'med',
+    en: 'Aankh Mein Chot (Eye Injury)',
+    hi: 'आँख में चोट',
+    cat: 'eye',
+    kw: ['eye', 'eye injury', 'aankh', 'aankh mein chot', 'आँख', 'आँख में चोट', 'ragdo mat', 'chubh', 'dust', 'chemical in eye'],
+    enD: 'Ragdo mat, paani se dho — flush gently with clean water and never rub the injured eye.',
+    hiD: 'आँख को रगड़ें नहीं, साफ़ पानी से हल्के से धोएँ और बिना सलाह कोई दवा न डालें।',
+    enSteps: [
+      'Do NOT rub the eye.',
+      'Rinse gently with clean water for 15 minutes.',
+      'If something is stuck inside, do NOT try to remove it.',
+      'Close the eye gently and place a light clean cloth over it.',
+      'Go to a doctor immediately.'
+    ],
+    hiSteps: [
+      'आँख को बिल्कुल न रगड़ें।',
+      'साफ़ पानी से 15 मिनट तक आँख को हल्के से धोएँ।',
+      'अगर आँख में कुछ चुभ गया हो तो उसे निकालने की कोशिश न करें।',
+      'आँख बंद करके ऊपर हल्का साफ़ कपड़ा रखें।',
+      'तुरंत डॉक्टर के पास जाएँ।'
+    ],
+    enDont: 'Do NOT rub the eye, and do NOT put any medicine or drops without a doctor’s advice.',
+    hiDont: 'आँख को न रगड़ें और बिना डॉक्टर की सलाह के कोई दवा या ड्रॉप न डालें।'
   }
 ];
 
@@ -418,7 +544,7 @@ export const I18N = {
     call: 'Call 112',
     eyebrow: 'ON-DEVICE FIRST-AID AI • INDIA',
     lead: 'Suraksha — offline first-aid AI. Ask anything in Hindi or English and get instant emergency steps, even with no internet.',
-    s1: '12 Verified Protocols',
+    s1: '17 Verified Protocols',
     s1s: 'Clear numbered steps',
     s2: 'Hindi + English',
     s2s: 'Devanagari & Hinglish',
@@ -481,7 +607,7 @@ export const I18N = {
     call: '112 बुलाएँ',
     eyebrow: 'ऑन-डिवाइस फ़र्स्ट-एड AI • भारत',
     lead: 'सुरक्षा — ऑफ़लाइन फ़र्स्ट-एड AI। हिंदी या अंग्रेज़ी में कुछ भी पूछें और बिना इंटरनेट भी तुरंत आपात स्टेप्स पाएँ।',
-    s1: '12 सत्यापित प्रोटोकॉल',
+    s1: '17 सत्यापित प्रोटोकॉल',
     s1s: 'स्पष्ट क्रमांकित स्टेप्स',
     s2: 'हिंदी + अंग्रेज़ी',
     s2s: 'देवनागरी और हिंग्लिश',

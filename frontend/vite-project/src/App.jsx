@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { LanguageProvider } from "./context/LanguageContext";
 import { GuidesProvider } from "./context/GuidesContext";
 import Navbar from "./components/Navbar";
@@ -8,6 +8,8 @@ import EmergencyButton from "./components/EmergencyButton";
 import "./App.css";
 
 function App() {
+  const [isAboutFaqOpen, setIsAboutFaqOpen] = useState(false);
+
   useEffect(() => {
     // Register Service Worker for offline capabilities if supported
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
@@ -19,39 +21,17 @@ function App() {
     }
   }, []);
 
-  const handleOpenAboutFaq = () => {
-    const sec = document.getElementById("about-faq");
-    if (!sec) return;
-    const first = sec.querySelector("details");
-    if (first) first.open = true;
-    sec.classList.remove("faq-flash");
-    void sec.offsetWidth;
-    sec.classList.add("faq-flash");
-    const reduce =
-      window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    sec.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-    const h = document.getElementById("aboutFaqHeading");
-    if (h) {
-      h.setAttribute("tabindex", "-1");
-      setTimeout(() => {
-        try {
-          h.focus({ preventScroll: true });
-        } catch {}
-      }, reduce ? 60 : 650);
-    }
-    setTimeout(() => {
-      sec.classList.remove("faq-flash");
-    }, 1900);
-  };
-
   return (
     <LanguageProvider>
       <GuidesProvider>
         <div className="suraksha-app min-h-screen flex flex-col">
           <Navbar />
           <EmergencyButton number="112" variant="floating" label="Call 112" />
-          <Homes />
-          <Footer onOpenAboutFaq={handleOpenAboutFaq} />
+          <Homes
+            isAboutFaqOpen={isAboutFaqOpen}
+            onCloseAboutFaq={() => setIsAboutFaqOpen(false)}
+          />
+          <Footer onOpenAboutFaq={() => setIsAboutFaqOpen(true)} />
         </div>
       </GuidesProvider>
     </LanguageProvider>

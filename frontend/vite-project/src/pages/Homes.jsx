@@ -1,12 +1,21 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLanguage } from "../context/LanguageContext";
-import { GUIDES, KITS, I18N } from "../utils/data";
+import { GUIDES, I18N } from "../utils/data";
 import { askSurakshaHybrid } from "../services/ai/hybridRouter";
 import MadadLocationTracker from "../components/MadadLocationTracker";
 
-export default function Homes() {
+export default function Homes({ isAboutFaqOpen = false, onCloseAboutFaq = () => {} }) {
   const { lang, copy } = useLanguage();
   const isHi = lang === "hi";
+
+  useEffect(() => {
+    if (!isAboutFaqOpen) return;
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") onCloseAboutFaq();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isAboutFaqOpen, onCloseAboutFaq]);
 
   // Toast notification state
   const [toastMsg, setToastMsg] = useState("");
@@ -518,140 +527,6 @@ export default function Homes() {
     }
   };
 
-  // ================= CPR METRONOME (110 BPM) =================
-  const [cprRunning, setCprRunning] = useState(false);
-  const [cprCount, setCprCount] = useState(0);
-  const [cprBeating, setCprBeating] = useState(false);
-  const cprIntervalRef = useRef(null);
-  const audioCtxRef = useRef(null);
-
-  const toggleCPR = () => {
-    if (cprRunning) {
-      if (cprIntervalRef.current) clearInterval(cprIntervalRef.current);
-      setCprRunning(false);
-      setCprBeating(false);
-      return;
-    }
-
-    setCprRunning(true);
-    setCprCount(0);
-
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) {
-        if (!audioCtxRef.current) audioCtxRef.current = new AudioCtx();
-        if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
-      }
-    } catch {}
-
-    const interval = Math.round(60000 / 110); // ~545ms
-
-    cprIntervalRef.current = setInterval(() => {
-      setCprCount((prev) => prev + 1);
-      setCprBeating(true);
-      setTimeout(() => setCprBeating(false), 160);
-
-      // Play short clean 880Hz audio click
-      try {
-        const ctx = audioCtxRef.current;
-        if (ctx) {
-          const osc = ctx.createOscillator();
-          const gn = ctx.createGain();
-          osc.frequency.value = 880;
-          gn.gain.setValueAtTime(0.18, ctx.currentTime);
-          gn.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.09);
-          osc.connect(gn);
-          gn.connect(ctx.destination);
-          osc.start();
-          osc.stop(ctx.currentTime + 0.1);
-        }
-      } catch {}
-
-      if (navigator.vibrate) {
-        try {
-          navigator.vibrate(30);
-        } catch {}
-      }
-    }, interval);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (cprIntervalRef.current) clearInterval(cprIntervalRef.current);
-    };
-  }, []);
-
-  // ================= KIT CHECKLIST =================
-  const [kitType, setKitType] = useState("home");
-  const [kitHave, setKitHave] = useState(() => {
-    try {
-      const saved = localStorage.getItem("suraksha_kit_have");
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
-
-  const currentKitData = KITS[kitType] || KITS.home;
-  const kitItems = currentKitData.items || [];
-  const kitKey = (item) => `${kitType}:${item[0]}`;
-
-  const toggleKitItem = (idx) => {
-    const item = kitItems[idx];
-    if (!item) return;
-    const k = kitKey(item);
-    setKitHave((prev) => {
-      const updated = { ...prev, [k]: !prev[k] };
-      try {
-        localStorage.setItem("suraksha_kit_have", JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-  };
-
-  const haveCount = kitItems.filter((it) => !!kitHave[kitKey(it)]).length;
-  const kitPct = kitItems.length ? Math.round((haveCount / kitItems.length) * 100) : 0;
-
-  const copyShoppingList = () => {
-    const missing = kitItems.filter((it) => !kitHave[kitKey(it)]);
-    if (!missing.length) {
-      showToast(isHi ? "कुछ भी छूटा नहीं है — यह किट पूरी है! 🎉" : "Nothing missing — this kit is complete! 🎉");
-      return;
-    }
-    const txt = `Suraksha — ${currentKitData.label} Shopping List (missing items)\n${missing.map((it, i) => `${i + 1}. ${it[0]} — Qty: ${it[1]}`).join("\n")}`;
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(txt).then(
-        () => showToast(isHi ? "शॉपिंग लिस्ट कॉपी हो गई" : "Shopping list copied — paste anywhere"),
-        () => showToast(isHi ? "कॉपी नहीं हुआ" : "Copy failed")
-      );
-    }
-  };
-
-  const downloadKitList = () => {
-    const txt = `Suraksha — ${currentKitData.label}\n\n${kitItems.map((it, i) => `${i + 1}. ${it[0]} — Qty: ${it[1]} — ${it[2]}${kitHave[kitKey(it)] ? " [HAVE]" : " [NEED]"}`).join("\n")}\n\nCheck expiry every 6 months. Call 112 in any serious emergency.`;
-    const b = new Blob([txt], { type: "text/plain" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(b);
-    a.download = `suraksha-${kitType}-kit.txt`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    showToast(isHi ? "किट लिस्ट डाउनलोड हो गई" : "Downloaded");
-  };
-
-  const resetKit = () => {
-    setKitHave((prev) => {
-      const copyMap = { ...prev };
-      kitItems.forEach((it) => {
-        delete copyMap[kitKey(it)];
-      });
-      try {
-        localStorage.setItem("suraksha_kit_have", JSON.stringify(copyMap));
-      } catch {}
-      return copyMap;
-    });
-    showToast(isHi ? "किट चेक रीसेट हो गया" : "Kit check reset");
-  };
 
   // Filtered guides for the directory section
   const filteredGuides = GUIDES.filter((g) => {
@@ -1335,114 +1210,6 @@ export default function Homes() {
         </div>
       </section>
 
-      {/* ================= CPR & KIT TOOLKIT SECTION ================= */}
-      <section id="tools" style={{ paddingTop: "14px" }}>
-        <div className="wrap">
-          <div className="sec-head">
-            <h2>{copy.toolH || "Emergency Tools"}</h2>
-            <p>{copy.toolP || "Built-in emergency utilities — zero downloads, zero internet required."}</p>
-          </div>
-
-          <div className="cpr">
-            {/* CPR Rhythm Helper */}
-            <div className="cprbox">
-              <h3>{copy.cprT || "CPR Rhythm Helper"}</h3>
-              <p>
-                {copy.cprP ||
-                  "Push hard and fast to this steady beat in the centre of the chest — around 110 times a minute. Tap Start and follow the pulse."}
-              </p>
-              <div className={`pulse ${cprBeating ? "beat" : ""}`} id="pulse" aria-live="polite">
-                {cprRunning ? cprCount : "110"}
-              </div>
-              <div style={{ fontWeight: 800, fontSize: "14px", color: "var(--muted)", marginBottom: "14px" }}>
-                {cprRunning
-                  ? `${cprCount} ${isHi ? "दबाव (Compressions)" : "compressions"}`
-                  : isHi
-                  ? "110 दबाव प्रति मिनट की लय"
-                  : "110 Beats Per Minute Target"}
-              </div>
-              <button type="button" onClick={toggleCPR} id="cprBtn">
-                {cprRunning ? "■ Stop" : "▶ Start CPR Beat"}
-              </button>
-            </div>
-
-            {/* First-Aid Kit Checklist */}
-            <div className="kit">
-              <h3>{copy.kitT || "First-Aid Kit Checklist"}</h3>
-              <p>
-                {copy.kitP || "Keep these essential supplies prepared at home, car or travel — check off what you have today."}
-              </p>
-
-              <div className="kit-tabs" style={{ marginTop: "14px" }}>
-                {[
-                  { key: "home", label: isHi ? "घर (Home)" : "Home Kit" },
-                  { key: "travel", label: isHi ? "सफ़र (Travel)" : "Travel Kit" },
-                  { key: "car", label: isHi ? "गाड़ी (Car)" : "Car Kit" },
-                  { key: "kids", label: isHi ? "बच्चे (Kids)" : "Baby & Kids Kit" }
-                ].map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    className={kitType === tab.key ? "on" : ""}
-                    onClick={() => setKitType(tab.key)}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="kit-progress" style={{ marginTop: "14px" }}>
-                <div className="kit-progress-top">
-                  <span>{currentKitData.label} — {haveCount} of {kitItems.length} items ready</span>
-                  <span>{kitPct}% ready{kitPct === 100 ? " 🎉" : ""}</span>
-                </div>
-                <div className="bar">
-                  <i style={{ width: `${kitPct}%` }}></i>
-                </div>
-              </div>
-
-              <div className="kit-grid" style={{ marginTop: "14px" }}>
-                {kitItems.map((item, idx) => {
-                  const has = !!kitHave[kitKey(item)];
-                  return (
-                    <div key={idx} className={`kitem ${has ? "have" : ""}`}>
-                      <div className="top">
-                        <h4>{item[0]}</h4>
-                        <span className={`tag ${item[3] === "ess" ? "ess" : "good"}`}>
-                          {item[3] === "ess" ? "ESSENTIAL" : "GOOD TO HAVE"}
-                        </span>
-                      </div>
-                      <p>
-                        <b style={{ color: "var(--dark)" }}>Qty: {item[1]}</b> — {item[2]}
-                      </p>
-                      <button
-                        type="button"
-                        className="havebtn"
-                        onClick={() => toggleKitItem(idx)}
-                      >
-                        {has ? "✓ I have this" : "I have this"}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="kit-actions">
-                <button type="button" className="btn" onClick={copyShoppingList}>
-                  ⧉ {isHi ? "मिसिंग सामान कॉपी करें" : "Copy Shopping List"}
-                </button>
-                <button type="button" className="btn" onClick={downloadKitList}>
-                  ↓ {isHi ? "किट डाउनलोड करें" : "Download Checklist"}
-                </button>
-                <button type="button" className="btn" onClick={resetKit}>
-                  ↺ {isHi ? "रीसेट" : "Reset Kit"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ================= HELPLINES SECTION ================= */}
       <section id="helplines" style={{ paddingTop: "10px" }}>
         <div className="wrap">
@@ -1503,80 +1270,99 @@ export default function Homes() {
         </div>
       </section>
 
-      {/* ================= ABOUT & FAQ SECTION ================= */}
-      <section id="about-faq" style={{ paddingTop: "10px" }} aria-labelledby="aboutFaqHeading">
-        <div className="wrap">
-          <div className="faqwrap">
-            <div className="sec-head">
-              <h2 id="aboutFaqHeading">{copy.faqH || "About & FAQ"}</h2>
-              <p>{copy.aboutSub || "What Suraksha is, how it works offline, and the questions people ask most."}</p>
+      {/* ================= ABOUT & FAQ MODAL ================= */}
+      {isAboutFaqOpen && (
+        <div
+          className="about-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="aboutFaqHeading"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onCloseAboutFaq();
+          }}
+        >
+          <div className="about-modal-sheet" id="about-faq">
+            <button
+              type="button"
+              className="about-modal-close"
+              onClick={onCloseAboutFaq}
+              aria-label={isHi ? "बंद करें" : "Close About & FAQ"}
+            >
+              ✕
+            </button>
+            <div className="faqwrap">
+              <div className="sec-head" style={{ marginBottom: "18px", paddingTop: "4px" }}>
+                <h2 id="aboutFaqHeading">{copy.faqH || "About & FAQ"}</h2>
+                <p>{copy.aboutSub || "What Suraksha is, how it works offline, and the questions people ask most."}</p>
+              </div>
+              <div className="about-card">
+                <h3>{copy.aboutT || "About Suraksha"}</h3>
+                <p>
+                  {isHi
+                    ? "सुरक्षा भारत के लिए एक ऑफ़लाइन-फ़र्स्ट फ़र्स्ट-एड फ़ील्ड मैनुअल है। यह 17 आम आपात स्थितियों के लिए साफ़, क्रमवार मदद देता है — हिंदी और अंग्रेज़ी में — सीधे आपके डिवाइस पर, बिना इंटरनेट, बिना लॉगिन और बिना इंतज़ार। सुरक्षा चिकित्सा देखभाल का विकल्प नहीं है — किसी भी गंभीर आपात स्थिति में पहले 112 बुलाएँ।"
+                    : "Suraksha is an offline-first first-aid field manual for India. It gives clear, step-by-step help for 17 common emergencies — in Hindi and English — right on your device, with no internet, no login and no waiting. It is made for the first few minutes of an emergency: the time before an ambulance or doctor can reach you. Suraksha does not replace medical care — in any serious emergency, call 112 first, then follow the steps while help is on the way."}
+                </p>
+              </div>
+              <details open>
+                <summary>{isHi ? I18N.hi.q1 : "Does Suraksha really work without internet?"}</summary>
+                <p>
+                  {isHi
+                    ? "हाँ। Ask बॉक्स और सभी 17 गाइड इसी पेज पर चलते हैं — पेज लोड होने के बाद एयरप्लेन मोड में भी सब काम करता है। सिर्फ़ फ़ोन कॉल के लिए नेटवर्क चाहिए।"
+                    : "Yes. The Ask box and all 17 guides run on this page itself — once the page has loaded, you can switch to airplane mode and everything still works. Only phone calls need network, like any call."}
+                </p>
+              </details>
+              <details>
+                <summary>{isHi ? I18N.hi.q2 : "Can I ask in Hindi or Hinglish?"}</summary>
+                <p>
+                  {isHi
+                    ? I18N.hi.a2
+                    : "Yes. Try “saap ne kaata”, “haath jal gaya”, “khoon beh raha hai” or “लू लग गई”. Suraksha understands English, Hinglish and Devanagari, and the हिंदी button switches the whole page to Hindi."}
+                </p>
+              </details>
+              <details>
+                <summary>{isHi ? I18N.hi.q3 : "Does Suraksha replace a doctor?"}</summary>
+                <p>
+                  {isHi
+                    ? I18N.hi.a3
+                    : "No. Suraksha gives first aid — the help you give in the first minutes before medical help arrives. For anything serious, always call 112 and get the person to a hospital."}
+                </p>
+              </details>
+              <details>
+                <summary>{isHi ? I18N.hi.q4 : "Can I hear the steps instead of reading them?"}</summary>
+                <p>
+                  {isHi
+                    ? I18N.hi.a4
+                    : "Yes. Open any guide or ask a question, then tap “Listen to steps”. Your phone reads the steps aloud in Hindi or English, so your hands stay free."}
+                </p>
+              </details>
+              <details>
+                <summary>{isHi ? I18N.hi.q5 : "What emergencies does Suraksha cover?"}</summary>
+                <p>
+                  {isHi
+                    ? "17 आपात स्थितियाँ: साँप का काटना, जलना, गले में अटकना, CPR, तेज़ खून बहना, हड्डी टूटना, लू लगना, दिल का दौरा, बिजली का झटका, डूबना, दौरा / मिर्गी, अस्थमा अटैक, लो शुगर, ज़हर, और आँख में चोट। ऊपर “Emergency Guides” दबाकर कोई भी खोलें।"
+                    : "17 emergencies: snake bite, burns, choking, CPR (no breathing), heavy bleeding, fracture, heat stroke (loo), heart attack, electric shock, drowning, seizure / mirgi, asthma attack, low sugar, poisoning, and eye injury. Tap “Emergency Guides” above to open any of them, or type what happened in the Ask box."}
+                </p>
+              </details>
+              <details>
+                <summary>{isHi ? I18N.hi.q6 : "What should I say when I call 112?"}</summary>
+                <p>
+                  {isHi
+                    ? I18N.hi.a6
+                    : "Speak slowly and say, in this order: (1) where you are — city, area and a nearby landmark, (2) what happened, (3) how many people are hurt and their condition, and (4) your phone number. Follow the operator’s instructions and stay on the line until they say you can cut the call."}
+                </p>
+              </details>
+              <details>
+                <summary>{isHi ? I18N.hi.q7 : "How does Madad SMS work?"}</summary>
+                <p>
+                  {isHi
+                    ? I18N.hi.a7
+                    : "Save a family or friend’s number in the Madad SMS section above. In an emergency, tap “Madad SMS Bhejo” or “Send Madad on WhatsApp” — Suraksha gets your GPS location and opens your SMS or WhatsApp app with “Madad chahiye, main yahan hoon” plus a Google Maps location link ready to send."}
+                </p>
+              </details>
             </div>
-            <div className="about-card">
-              <h3>{copy.aboutT || "About Suraksha"}</h3>
-              <p>
-                {copy.aboutP ||
-                  "Suraksha is an offline-first first-aid field manual for India. It gives clear, step-by-step help for 12 common emergencies — in Hindi and English — right on your device, with no internet, no login and no waiting. It is made for the first few minutes of an emergency: the time before an ambulance or doctor can reach you. Suraksha does not replace medical care — in any serious emergency, call 112 first, then follow the steps while help is on the way."}
-              </p>
-            </div>
-            <details>
-              <summary>{isHi ? I18N.hi.q1 : "Does Suraksha really work without internet?"}</summary>
-              <p>
-                {isHi
-                  ? I18N.hi.a1
-                  : "Yes. The Ask box and all 12 guides run on this page itself — once the page has loaded, you can switch to airplane mode and everything still works. Only phone calls need network, like any call."}
-              </p>
-            </details>
-            <details>
-              <summary>{isHi ? I18N.hi.q2 : "Can I ask in Hindi or Hinglish?"}</summary>
-              <p>
-                {isHi
-                  ? I18N.hi.a2
-                  : "Yes. Try “saap ne kaata”, “haath jal gaya”, “khoon beh raha hai” or “लू लग गई”. Suraksha understands English, Hinglish and Devanagari, and the हिंदी button switches the whole page to Hindi."}
-              </p>
-            </details>
-            <details>
-              <summary>{isHi ? I18N.hi.q3 : "Does Suraksha replace a doctor?"}</summary>
-              <p>
-                {isHi
-                  ? I18N.hi.a3
-                  : "No. Suraksha gives first aid — the help you give in the first minutes before medical help arrives. For anything serious, always call 112 and get the person to a hospital."}
-              </p>
-            </details>
-            <details>
-              <summary>{isHi ? I18N.hi.q4 : "Can I hear the steps instead of reading them?"}</summary>
-              <p>
-                {isHi
-                  ? I18N.hi.a4
-                  : "Yes. Open any guide or ask a question, then tap “Listen to steps”. Your phone reads the steps aloud in Hindi or English, so your hands stay free."}
-              </p>
-            </details>
-            <details>
-              <summary>{isHi ? I18N.hi.q5 : "What emergencies does Suraksha cover?"}</summary>
-              <p>
-                {isHi
-                  ? I18N.hi.a5
-                  : "12 emergencies: snake bite, burns, choking, CPR (no breathing), heavy bleeding, fracture, heat stroke (loo), heart attack, electric shock, drowning, seizure / fit, and poisoning. Tap “Emergency Guides” above to open any of them, or type what happened in the Ask box."}
-              </p>
-            </details>
-            <details>
-              <summary>{isHi ? I18N.hi.q6 : "What should I say when I call 112?"}</summary>
-              <p>
-                {isHi
-                  ? I18N.hi.a6
-                  : "Speak slowly and say, in this order: (1) where you are — city, area and a nearby landmark, (2) what happened, (3) how many people are hurt and their condition, and (4) your phone number. Follow the operator’s instructions and stay on the line until they say you can cut the call."}
-              </p>
-            </details>
-            <details>
-              <summary>{isHi ? I18N.hi.q7 : "How does Madad SMS work?"}</summary>
-              <p>
-                {isHi
-                  ? I18N.hi.a7
-                  : "Save a family or friend’s number in the Madad SMS section above. In an emergency, tap “Madad SMS Bhejo” — Suraksha gets your GPS location and opens your phone’s SMS app with “Madad chahiye, main yahan hoon” plus a Google Maps location link ready to send. SMS does not need internet, so it works offline too — you just need mobile network for the SMS itself, and Location ON for the map link."}
-              </p>
-            </details>
           </div>
         </div>
-      </section>
+      )}
 
       {/* ================= TOAST NOTIFICATION ================= */}
       <div className={`toast ${toastMsg ? "show" : ""}`} id="toast" role="status">
