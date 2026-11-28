@@ -35,7 +35,6 @@ export function scoreGuide(item, rawQuery) {
   else if (en.startsWith(q) || hi.startsWith(q)) score += 90;
   else if (en.includes(q) || hi.includes(q) || q.includes(en) || q.includes(hi)) score += 70;
 
-  // Exact or substring phrase match (spoken sentences)
   if (item.phrases) {
     for (let i = 0; i < item.phrases.length; i++) {
       const ph = normalizeText(item.phrases[i]);
@@ -44,13 +43,14 @@ export function scoreGuide(item, rawQuery) {
     }
   }
 
-  // Token-level intent matching
   const tokens = q.split(" ").filter(function (t) {
     return t.length > 1 && !STOP_WORDS.has(t);
   });
 
-  const kwSet = (item.keywords || []).map(normalizeText);
-  const stepsBlob = normalizeText((item.steps || []).join(" ") + " " + (item.stepsHi || []).join(" "));
+  const keywordsList = item.kw || item.keywords || [];
+  const kwSet = keywordsList.map(normalizeText);
+  const stepItems = (item.enSteps || item.steps || []).concat(item.hiSteps || item.stepsHi || []);
+  const stepsBlob = normalizeText(stepItems.join(" "));
 
   if (tokens.length === 0) {
     for (let i = 0; i < kwSet.length; i++) {

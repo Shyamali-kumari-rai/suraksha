@@ -1,63 +1,52 @@
 import React from "react";
 import { useLanguage } from "../context/LanguageContext";
-import EmergencyButton from "./EmergencyButton";
 
 export default function Navbar() {
   const { lang, setLang, copy } = useLanguage();
+  const isHi = lang === "hi";
 
   return (
-    <header className="navbar" id="navBar">
-      <div className="container nav-inner">
-        <a href="#top" className="brand" aria-label="Suraksha Home">
-          <span className="brand-mark" aria-hidden="true">
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 2L4 5v6c0 5.25 3.4 10.15 8 11 4.6-.85 8-5.75 8-11V5l-8-3z" />
-              <path d="M12 8v8" />
-              <path d="M8 12h8" />
-            </svg>
-          </span>
-          <span className="brand-copy">
-            <span className="brand-name">Suraksha</span>
-            <span className="brand-tag">{copy.brandTag || "Offline First-Aid AI"}</span>
-          </span>
+    <header>
+      <div className="wrap nav">
+        <a className="brand" href="#top">
+          <span className="brand-mark" aria-hidden="true">✚</span>
+          Suraksha
+          <sup style={{ fontSize: "12px", marginLeft: "2px" }}>®</sup>
         </a>
 
-        <nav className="nav-links" aria-label="Primary Navigation">
-          <a href="#guides">{copy.navGuides || "Guides"}</a>
-          <a href="#impact">{copy.navHow || "Offline Ready"}</a>
-          <a href="#faq">{copy.navFaq || "FAQ"}</a>
-          <a href="#helplines">{copy.navHelplines || "Helplines"}</a>
+        <span className="pill">
+          <span className="dot" aria-hidden="true"></span>
+          <span>{copy.ready || "OFFLINE READY"}</span>
+        </span>
+
+        <nav className="navlinks" aria-label="Primary Navigation">
+          <a href="#ask">{copy.n1 || "Ask AI"}</a>
+          <a href="#madad">{copy.nMadad || "Madad SMS"}</a>
+          <a href="#guides">{copy.n2 || "Emergency Guides"}</a>
+          <a href="#how">{copy.n3 || "How It Works"}</a>
+          <a href="#tools">{copy.n4 || "CPR & Kit"}</a>
+          <a href="#helplines">{copy.n5 || "Helplines"}</a>
         </nav>
 
-        <div className="nav-actions">
-          <div className="lang-switch" role="group" aria-label="Language">
-            <button
-              type="button"
-              className={`lang-btn ${lang === "en" ? "active" : ""}`}
-              onClick={() => setLang("en")}
-              aria-pressed={lang === "en"}
-            >
-              EN
-            </button>
-            <button
-              type="button"
-              className={`lang-btn ${lang === "hi" ? "active" : ""}`}
-              onClick={() => setLang("hi")}
-              aria-pressed={lang === "hi"}
-            >
-              हिंदी
-            </button>
-          </div>
-          <EmergencyButton number="112" variant="nav" label="Call 112" />
+        <div className="lang" role="group" aria-label="Language selection">
+          <button
+            id="langEn"
+            className={!isHi ? "on" : ""}
+            type="button"
+            onClick={() => setLang("en")}
+            aria-pressed={!isHi}
+          >
+            EN
+          </button>
+          <button
+            id="langHi"
+            className={isHi ? "on" : ""}
+            type="button"
+            onClick={() => setLang("hi")}
+            aria-pressed={isHi}
+          >
+            हिंदी
+          </button>
         </div>
       </div>
     </header>

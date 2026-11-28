@@ -3,9 +3,9 @@ import { sendEmergencyAlert } from "../services/apiService";
 
 export default function EmergencyButton({
   number = "112",
-  variant = "nav", // 'nav' | 'hero' | 'solid' | 'modal' | 'strip'
   label,
   className = "",
+  variant = "floating", // 'floating' | 'btn' | 'solid'
   guideId = null
 }) {
   const handleClick = () => {
@@ -16,30 +16,27 @@ export default function EmergencyButton({
     });
   };
 
-  const getClassName = () => {
-    switch (variant) {
-      case "hero":
-        return "btn-emergency-hero";
-      case "solid":
-        return "btn-emergency-solid";
-      case "modal":
-        return "btn-call-modal";
-      case "strip":
-        return "strip-dark-btn";
-      case "nav":
-      default:
-        return "btn-call-nav";
-    }
-  };
+  if (variant === "floating") {
+    return (
+      <a
+        className="call112"
+        href={`tel:${number}`}
+        onClick={handleClick}
+        aria-label={`Call emergency helpline ${number}`}
+      >
+        📞 <span>{label || `Call ${number}`}</span>
+      </a>
+    );
+  }
 
   return (
     <a
+      className={`btn red ${className}`}
       href={`tel:${number}`}
       onClick={handleClick}
-      className={`${getClassName()} ${className}`}
       aria-label={`Call emergency helpline ${number}`}
     >
-      {label || `Call ${number}`}
+      📞 {label || `Call ${number}`}
     </a>
   );
 }

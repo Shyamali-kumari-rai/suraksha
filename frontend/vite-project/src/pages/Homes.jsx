@@ -1,465 +1,1103 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLanguage } from "../context/LanguageContext";
-import { useGuides } from "../context/GuidesContext";
-import FirstAidCard from "../components/FirstAidCard";
-import EmergencyButton from "../components/EmergencyButton";
-import LoadingSpinner from "../components/LoadingSpinner";
-import { useVoiceAssistant } from "../hooks/useVoiceAssistant";
+import { GUIDES, KITS, I18N } from "../utils/data";
 import { askSurakshaHybrid } from "../services/ai/hybridRouter";
 
 export default function Homes() {
   const { lang, copy } = useLanguage();
-  const {
-    guides,
-    loading,
-    filter,
-    setFilter,
-    searchQuery,
-    setSearchQuery,
-    activeGuide,
-    openGuide,
-    closeGuide,
-    isVoiceModalOpen,
-    openVoiceModal,
-    closeVoiceModal,
-    toggleStep,
-    isStepChecked,
-    getCompletedCount
-  } = useGuides();
-
   const isHi = lang === "hi";
 
-  // Voice Assistant Hook
-  const {
-    isListening,
-    transcript,
-    setTranscript,
-    voiceLang,
-    setVoiceLang,
-    matchedGuide,
-    setMatchedGuide,
-    activeSpeakingStep,
-    isSpeaking,
-    statusMessage,
-    speechSupported,
-    startListening,
-    stopListening,
-    toggleListening,
-    processQuery,
-    speakSteps,
-    stopSpeaking
-  } = useVoiceAssistant();
+  // Toast notification state
+  const [toastMsg, setToastMsg] = useState("");
+  const toastTimeoutRef = useRef(null);
 
-  // Local state for search input text
-  const [localInput, setLocalInput] = useState(searchQuery);
-  const [manualTypeInput, setManualTypeInput] = useState("");
-  const [modalIsSpeaking, setModalIsSpeaking] = useState(false);
-  const [modalActiveStep, setModalActiveStep] = useState(-1);
-  const modalSpeechRunId = useRef(0);
+  const showToast = (msg) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToastMsg(msg);
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMsg("");
+    }, 2600);
+  };
 
-  // AI Assistant detailed help states
-  const [aiGuideLoading, setAiGuideLoading] = useState(false);
-  const [aiGuideResponse, setAiGuideResponse] = useState(null);
-  const [aiSearchLoading, setAiSearchLoading] = useState(false);
-  const [aiSearchResponse, setAiSearchResponse] = useState(null);
+  // Helper getters for guides
+  const getGuideTitle = (g) => (isHi ? g.hi : g.en);
+  const getGuideSteps = (g) => (isHi ? g.hiSteps : g.enSteps);
+  const getGuideDesc = (g) => (isHi ? g.hiD : g.enD);
+  const getGuideDont = (g) => (isHi ? g.hiDont : g.enDont);
 
-  const handleAskAIGuide = async () => {
-    if (!activeGuide) return;
-    setAiGuideLoading(true);
+  // Search & Active Guide State
+  const [askInput, setAskInput] = useState("");
+  const [currentGuideId, setCurrentGuideId] = useState(null);
+  const [searchGuideQuery, setSearchGuideQuery] = useState("");
+  const [recentList, setRecentList] = useState(() => {
     try {
-      const promptQuery = isHi
-        ? `${activeGuide.hi} के लिए विस्तृत प्राथमिक उपचार कदम और सावधानियां बताएं`
-        : `Detailed first aid steps and critical precautions for ${activeGuide.en}`;
-      const res = await askSurakshaHybrid(promptQuery);
-      setAiGuideResponse(res);
+      const saved = localStorage.getItem("suraksha_recent_checks");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const pushRecent = (id) => {
+    setRecentList((prev) => {
+      const filtered = prev.filter((x) => x !== id);
+      const updated = [id, ...filtered].slice(0, 4);
+      try {
+        localStorage.setItem("suraksha_recent_checks", JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  // AI Assistance State
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResponse, setAiResponse] = useState(null);
+  const [noMatchQuery, setNoMatchQuery] = useState("");
+
+  const handleAskAI = async (queryText) => {
+    const q = queryText || askInput || "Emergency first aid guidance";
+    setAiLoading(true);
+    try {
+      const res = await askSurakshaHybrid(q);
+      setAiResponse(res);
     } catch (err) {
-      setAiGuideResponse({
+      setAiResponse({
         source: "ON-DEVICE",
         badgeClass: "badge-ondevice",
         badgeText: "ON-DEVICE • AI",
-        text: "Keep the patient calm and in a safe position.\nIn a serious emergency, call 112 immediately."
+        text: isHi
+          ? "मरीज को शांत और सुरक्षित स्थिति में रखें। किसी भी गंभीर आपात स्थिति में तुरंत 112 पर कॉल करें।"
+          : "Keep the patient calm and in a safe position. In a serious emergency, call 112 immediately."
       });
     } finally {
-      setAiGuideLoading(false);
+      setAiLoading(false);
     }
   };
 
-  const handleAskAISearch = async () => {
-    const query = searchQuery || localInput || "Emergency first aid help";
-    setAiSearchLoading(true);
-    try {
-      const res = await askSurakshaHybrid(query);
-      setAiSearchResponse(res);
-    } catch (err) {
-      setAiSearchResponse({
-        source: "ON-DEVICE",
-        badgeClass: "badge-ondevice",
-        badgeText: "ON-DEVICE • AI",
-        text: "Keep the patient calm and in a safe position.\nIn a serious emergency, call 112 immediately."
-      });
-    } finally {
-      setAiSearchLoading(false);
+  // Select / Open Guide
+  const handleSelectGuide = (id, scroll = false) => {
+    setCurrentGuideId(id);
+    setNoMatchQuery("");
+    setAiResponse(null);
+    pushRecent(id);
+
+    if (scroll) {
+      setTimeout(() => {
+        const detailEl = document.getElementById("detail");
+        if (detailEl) {
+          detailEl.scrollIntoView({ behavior: "smooth", block: "start" });
+          detailEl.classList.remove("flash");
+          void detailEl.offsetWidth;
+          detailEl.classList.add("flash");
+        }
+      }, 50);
     }
   };
 
-  // FAQ accordion open states
-  const [openFaq, setOpenFaq] = useState({ 0: false, 1: false, 2: false });
-
-  const toggleFaq = (idx) => {
-    setOpenFaq((prev) => ({ ...prev, [idx]: !prev[idx] }));
+  const handleQuickAsk = (id) => {
+    handleSelectGuide(id, false);
+    const askEl = document.getElementById("ask");
+    if (askEl) askEl.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    setSearchQuery(localInput);
-  };
+  // Handle Form Submit in Ask Box
+  const handleAskSubmit = (e) => {
+    if (e) e.preventDefault();
+    const q = askInput.trim().toLowerCase();
+    const askFormEl = document.getElementById("askForm");
 
-  const handleClearSearch = () => {
-    setLocalInput("");
-    setSearchQuery("");
-  };
-
-  const handleChipClick = (query) => {
-    setLocalInput(query);
-    setSearchQuery(query);
-  };
-
-  // Modal Audio Speech handler
-  const handleModalListen = () => {
-    if (!activeGuide) return;
-    if (modalIsSpeaking) {
-      stopModalSpeech();
+    if (!q) {
+      if (askFormEl) {
+        askFormEl.classList.remove("invalid");
+        void askFormEl.offsetWidth;
+        askFormEl.classList.add("invalid");
+        setTimeout(() => askFormEl.classList.remove("invalid"), 1400);
+      }
+      showToast(isHi ? "पहले लिखें कि क्या हुआ — या नीचे कोई चिप दबाएँ" : "Type what happened first — or tap a chip below");
       return;
     }
 
-    if (!("speechSynthesis" in window)) return;
+    let best = null;
+    let bestScore = 0;
 
-    modalSpeechRunId.current++;
-    const currentRun = modalSpeechRunId.current;
-    setModalIsSpeaking(true);
-
-    const steps = isHi ? activeGuide.stepsHi : activeGuide.steps;
-    const langCode = isHi ? "hi-IN" : "en-IN";
-
-    // Find voice
-    const voices = window.speechSynthesis.getVoices() || [];
-    const exactVoice = voices.find(
-      (v) => (v.lang || "").toLowerCase() === langCode.toLowerCase()
-    );
-    const fallbackVoice = voices.find((v) =>
-      (v.lang || "").toLowerCase().startsWith(langCode.slice(0, 2))
-    );
-    const chosenVoice = exactVoice || fallbackVoice;
-
-    let idx = 0;
-
-    const speakNext = () => {
-      if (currentRun !== modalSpeechRunId.current) return;
-      if (idx >= steps.length) {
-        setModalIsSpeaking(false);
-        setModalActiveStep(-1);
-        return;
+    GUIDES.forEach((g) => {
+      let s = 0;
+      g.kw.forEach((k) => {
+        if (q.indexOf(k.toLowerCase()) > -1) s += k.length;
+      });
+      if (g.en.toLowerCase() === q || g.hi === q) s += 50;
+      if (s > bestScore) {
+        bestScore = s;
+        best = g;
       }
+    });
 
-      setModalActiveStep(idx);
-      const prefix = isHi ? `कदम ${idx + 1}. ` : `Step ${idx + 1}. `;
-      const utter = new SpeechSynthesisUtterance(prefix + steps[idx]);
-      utter.lang = langCode;
-      utter.rate = 0.95;
-      if (chosenVoice) utter.voice = chosenVoice;
-
-      utter.onend = () => {
-        if (currentRun !== modalSpeechRunId.current) return;
-        idx++;
-        speakNext();
-      };
-
-      utter.onerror = () => {
-        if (currentRun !== modalSpeechRunId.current) return;
-        setModalIsSpeaking(false);
-        setModalActiveStep(-1);
-      };
-
-      window.speechSynthesis.speak(utter);
-    };
-
-    speakNext();
-  };
-
-  const stopModalSpeech = () => {
-    modalSpeechRunId.current++;
-    setModalIsSpeaking(false);
-    setModalActiveStep(-1);
-    if ("speechSynthesis" in window) {
-      try {
-        window.speechSynthesis.cancel();
-      } catch {}
+    if (best && bestScore > 0) {
+      handleSelectGuide(best.id, false);
+    } else {
+      setCurrentGuideId(null);
+      setNoMatchQuery(askInput.trim());
+      setAiResponse(null);
     }
   };
 
-  // Close active guide modal and stop speech
-  const handleCloseGuide = () => {
-    stopModalSpeech();
-    setAiGuideResponse(null);
-    closeGuide();
+  // Speech Recognition (Voice Ask)
+  const [isListening, setIsListening] = useState(false);
+  const recogRef = useRef(null);
+
+  const voiceReset = () => {
+    setIsListening(false);
+    if (recogRef.current) {
+      try {
+        recogRef.current.stop();
+      } catch {}
+      recogRef.current = null;
+    }
   };
 
-  // Handle manual submit inside voice modal
-  const handleManualTypeSubmit = (e) => {
+  const handleVoiceAsk = () => {
+    if (isListening) {
+      voiceReset();
+      return;
+    }
+
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      showToast(isHi ? "वॉइस उपलब्ध नहीं — लिखकर पूछें" : "Voice not available here — please type instead");
+      return;
+    }
+
+    try {
+      const recog = new SR();
+      recogRef.current = recog;
+      recog.lang = isHi ? "hi-IN" : "en-IN";
+      recog.interimResults = true;
+      recog.continuous = false;
+      recog.maxAlternatives = 1;
+
+      recog.onresult = (ev) => {
+        let finalTxt = "";
+        let interim = "";
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          if (ev.results[i].isFinal) finalTxt += ev.results[i][0].transcript;
+          else interim += ev.results[i][0].transcript;
+        }
+        if (interim) setAskInput(interim);
+        if (finalTxt) {
+          setAskInput(finalTxt);
+          voiceReset();
+          // Trigger search directly with recognized text
+          const q = finalTxt.trim().toLowerCase();
+          let best = null;
+          let bestScore = 0;
+          GUIDES.forEach((g) => {
+            let s = 0;
+            g.kw.forEach((k) => {
+              if (q.indexOf(k.toLowerCase()) > -1) s += k.length;
+            });
+            if (g.en.toLowerCase() === q || g.hi === q) s += 50;
+            if (s > bestScore) {
+              bestScore = s;
+              best = g;
+            }
+          });
+          if (best && bestScore > 0) {
+            handleSelectGuide(best.id, false);
+          } else {
+            setCurrentGuideId(null);
+            setNoMatchQuery(finalTxt);
+          }
+        }
+      };
+
+      recog.onerror = (ev) => {
+        voiceReset();
+        const err = ev && ev.error ? ev.error : "";
+        if (err === "not-allowed" || err === "service-not-allowed") {
+          showToast(isHi ? "माइक की अनुमति बंद है — ब्राउज़र सेटिंग में Allow करें" : "Microphone blocked — allow mic access in browser settings");
+        } else if (err === "network") {
+          showToast(isHi ? "वॉइस के लिए इंटरनेट चाहिए — लिखकर पूछें" : "Voice recognition requires connection — type instead");
+        } else if (err === "no-speech") {
+          showToast(isHi ? "आवाज़ सुनाई नहीं दी — फिर बोलें" : "No speech heard — tap mic and speak again");
+        } else {
+          showToast(isHi ? "आवाज़ सुनाई नहीं दी — फिर कोशिश करें" : "Could not hear that — please try again");
+        }
+      };
+
+      recog.onend = () => {
+        voiceReset();
+      };
+
+      recog.start();
+      setIsListening(true);
+      showToast(isHi ? "सुन रहा हूँ… आपात स्थिति बोलें" : "Listening… speak the emergency now");
+    } catch (e) {
+      voiceReset();
+      showToast(isHi ? "माइक शुरू नहीं हुआ — फिर कोशिश करें" : "Mic could not start — please try again");
+    }
+  };
+
+  // Speech Synthesis (Read steps aloud)
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  const handleSpeakSteps = (guide) => {
+    if (!("speechSynthesis" in window)) {
+      showToast(isHi ? "इस ब्राउज़र में आवाज़ उपलब्ध नहीं है" : "Voice is not available in this browser");
+      return;
+    }
+
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      showToast(isHi ? "सुनाना बंद कर दिया" : "Stopped reading");
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const st = getGuideSteps(guide);
+    const textToSpeak = `${getGuideTitle(guide)}. ${st.join(". ")}`;
+
+    const utter = new SpeechSynthesisUtterance(textToSpeak);
+    utter.lang = isHi ? "hi-IN" : "en-IN";
+    utter.rate = 0.92;
+
+    utter.onend = () => setIsSpeaking(false);
+    utter.onerror = () => setIsSpeaking(false);
+
+    window.speechSynthesis.speak(utter);
+    setIsSpeaking(true);
+    showToast(isHi ? "स्टेप्स सुनाए जा रहे हैं…" : "Reading the steps aloud…");
+  };
+
+  // Copy Steps to Clipboard
+  const handleCopySteps = (guide) => {
+    const st = getGuideSteps(guide);
+    const txt = `Suraksha — ${getGuideTitle(guide)}\n${getGuideTitle(guide)}. ${st.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n\nDo NOT: ${getGuideDont(guide)}\n\nIn serious emergency, call 112 immediately.`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(
+        () => showToast(isHi ? "स्टेप्स कॉपी हो गए — WhatsApp पर भेजें" : "Steps copied — share them on WhatsApp"),
+        () => showToast(isHi ? "कॉपी नहीं हुआ" : "Copy failed")
+      );
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = txt;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try {
+        document.execCommand("copy");
+        showToast(isHi ? "स्टेप्स कॉपी हो गए — WhatsApp पर भेजें" : "Steps copied — share them on WhatsApp");
+      } catch {
+        showToast(isHi ? "कॉपी नहीं हुआ" : "Copy failed");
+      }
+      document.body.removeChild(ta);
+    }
+  };
+
+  // ================= MADAD SMS =================
+  const [madadContacts, setMadadContacts] = useState(() => {
+    try {
+      const saved = localStorage.getItem("suraksha_madad_contacts");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [madadName, setMadadName] = useState("");
+  const [madadPhone, setMadadPhone] = useState("");
+  const [madadStatus, setMadadStatus] = useState("");
+  const [madadSending, setMadadSending] = useState(false);
+
+  const cleanPhone = (p) => (p || "").replace(/[^\d+]/g, "");
+  const isValidPhone = (p) => {
+    const d = p.replace(/\D/g, "");
+    return d.length >= 10 && d.length <= 13;
+  };
+
+  const handleAddMadadContact = (e) => {
     e.preventDefault();
-    if (!manualTypeInput.trim()) return;
-    setTranscript(manualTypeInput);
-    processQuery(manualTypeInput);
+    const name = madadName.trim();
+    const raw = madadPhone.trim();
+    const phone = cleanPhone(raw);
+
+    if (!name) {
+      showToast(isHi ? "पहले नाम लिखें — जैसे Maa, Bhaiya" : "Add a name first — e.g. Maa, Bhaiya");
+      return;
+    }
+    if (!isValidPhone(phone)) {
+      showToast(isHi ? "सही 10-digit mobile number डालें" : "Enter a valid 10-digit mobile number");
+      return;
+    }
+    if (madadContacts.some((c) => c.phone === phone)) {
+      showToast(isHi ? "Ye number pehle se save hai" : "This number is already saved");
+      return;
+    }
+
+    const updated = [...madadContacts, { name, phone }];
+    setMadadContacts(updated);
+    try {
+      localStorage.setItem("suraksha_madad_contacts", JSON.stringify(updated));
+    } catch {}
+
+    setMadadName("");
+    setMadadPhone("");
+    showToast(isHi ? `Number save ho gaya: ${name}` : `Number saved: ${name}`);
+    setMadadStatus(
+      isHi
+        ? `✓ ${name} का नंबर सेव है। अब इमरजेंसी में नीचे “मदद SMS भेजो” दबाएँ।`
+        : `✓ ${name} saved. In an emergency, tap “Send Madad SMS” below.`
+    );
   };
 
-  const handleVoiceSampleClick = (phrase) => {
-    setManualTypeInput(phrase);
-    setTranscript(phrase);
-    processQuery(phrase);
+  const handleRemoveMadadContact = (idx) => {
+    const updated = madadContacts.filter((_, i) => i !== idx);
+    setMadadContacts(updated);
+    try {
+      localStorage.setItem("suraksha_madad_contacts", JSON.stringify(updated));
+    } catch {}
+    showToast(isHi ? "Number hata diya gaya" : "Number removed");
   };
 
-  // Clean speech when voice modal closes
-  const handleCloseVoiceModal = () => {
-    stopSpeaking();
-    stopListening();
-    closeVoiceModal();
+  const handleSendMadadSMS = () => {
+    if (!madadContacts.length) {
+      showToast(isHi ? "Pehle family ka number save karein" : "Save a family number first");
+      setMadadStatus(
+        isHi
+          ? "⚠ पहले ऊपर परिवार / दोस्त का नंबर सेव करें, फिर मदद SMS भेजें।"
+          : "⚠ Save a family / friend number above first, then send Madad SMS."
+      );
+      const madadEl = document.getElementById("madad");
+      if (madadEl) madadEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    setMadadSending(true);
+    setMadadStatus(
+      isHi
+        ? "📍 आपकी GPS लोकेशन ली जा रही है… Allow करें अगर फोन पूछे। लोकेशन मिले या न मिले, SMS रेडी हो जाएगा।"
+        : "📍 Getting your GPS location… Allow it if your phone asks. The SMS will be ready either way."
+    );
+
+    const finishSMS = (lat, lng) => {
+      setMadadSending(false);
+      const numbers = madadContacts.map((c) => c.phone).join(",");
+      let msg = "Madad chahiye, main yahan hoon";
+      if (lat !== null && lng !== null) {
+        msg += `\nMeri location: https://maps.google.com/?q=${lat},${lng}`;
+      } else {
+        msg += "\n(Meri location nahi mil payi — please mujhe call karke poochhein main kahan hoon)";
+      }
+      msg += "\n— Suraksha Madad SMS";
+
+      const href = `sms:${numbers}?&body=${encodeURIComponent(msg)}`;
+      setMadadStatus(
+        isHi
+          ? "SMS app खुल रहा है — मैसेज रेडी है, बस Send दबाएँ। अगर app न खुले तो अपने SMS app में यही मैसेज भेजें।"
+          : "Your SMS app is opening — the message is ready, just tap Send."
+      );
+
+      const a = document.createElement("a");
+      a.href = href;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        if (a.parentNode) document.body.removeChild(a);
+      }, 600);
+    };
+
+    if (!navigator.geolocation) {
+      finishSMS(null, null);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      finishSMS(null, null);
+    }, 8500);
+
+    try {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          clearTimeout(timer);
+          finishSMS(pos.coords.latitude.toFixed(6), pos.coords.longitude.toFixed(6));
+        },
+        () => {
+          clearTimeout(timer);
+          finishSMS(null, null);
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+      );
+    } catch {
+      clearTimeout(timer);
+      finishSMS(null, null);
+    }
   };
+
+  // ================= CPR METRONOME (110 BPM) =================
+  const [cprRunning, setCprRunning] = useState(false);
+  const [cprCount, setCprCount] = useState(0);
+  const [cprBeating, setCprBeating] = useState(false);
+  const cprIntervalRef = useRef(null);
+  const audioCtxRef = useRef(null);
+
+  const toggleCPR = () => {
+    if (cprRunning) {
+      if (cprIntervalRef.current) clearInterval(cprIntervalRef.current);
+      setCprRunning(false);
+      setCprBeating(false);
+      return;
+    }
+
+    setCprRunning(true);
+    setCprCount(0);
+
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        if (!audioCtxRef.current) audioCtxRef.current = new AudioCtx();
+        if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
+      }
+    } catch {}
+
+    const interval = Math.round(60000 / 110); // ~545ms
+
+    cprIntervalRef.current = setInterval(() => {
+      setCprCount((prev) => prev + 1);
+      setCprBeating(true);
+      setTimeout(() => setCprBeating(false), 160);
+
+      // Play short clean 880Hz audio click
+      try {
+        const ctx = audioCtxRef.current;
+        if (ctx) {
+          const osc = ctx.createOscillator();
+          const gn = ctx.createGain();
+          osc.frequency.value = 880;
+          gn.gain.setValueAtTime(0.18, ctx.currentTime);
+          gn.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.09);
+          osc.connect(gn);
+          gn.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.1);
+        }
+      } catch {}
+
+      if (navigator.vibrate) {
+        try {
+          navigator.vibrate(30);
+        } catch {}
+      }
+    }, interval);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (cprIntervalRef.current) clearInterval(cprIntervalRef.current);
+    };
+  }, []);
+
+  // ================= KIT CHECKLIST =================
+  const [kitType, setKitType] = useState("home");
+  const [kitHave, setKitHave] = useState(() => {
+    try {
+      const saved = localStorage.getItem("suraksha_kit_have");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const currentKitData = KITS[kitType] || KITS.home;
+  const kitItems = currentKitData.items || [];
+  const kitKey = (item) => `${kitType}:${item[0]}`;
+
+  const toggleKitItem = (idx) => {
+    const item = kitItems[idx];
+    if (!item) return;
+    const k = kitKey(item);
+    setKitHave((prev) => {
+      const updated = { ...prev, [k]: !prev[k] };
+      try {
+        localStorage.setItem("suraksha_kit_have", JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const haveCount = kitItems.filter((it) => !!kitHave[kitKey(it)]).length;
+  const kitPct = kitItems.length ? Math.round((haveCount / kitItems.length) * 100) : 0;
+
+  const copyShoppingList = () => {
+    const missing = kitItems.filter((it) => !kitHave[kitKey(it)]);
+    if (!missing.length) {
+      showToast(isHi ? "कुछ भी छूटा नहीं है — यह किट पूरी है! 🎉" : "Nothing missing — this kit is complete! 🎉");
+      return;
+    }
+    const txt = `Suraksha — ${currentKitData.label} Shopping List (missing items)\n${missing.map((it, i) => `${i + 1}. ${it[0]} — Qty: ${it[1]}`).join("\n")}`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(
+        () => showToast(isHi ? "शॉपिंग लिस्ट कॉपी हो गई" : "Shopping list copied — paste anywhere"),
+        () => showToast(isHi ? "कॉपी नहीं हुआ" : "Copy failed")
+      );
+    }
+  };
+
+  const downloadKitList = () => {
+    const txt = `Suraksha — ${currentKitData.label}\n\n${kitItems.map((it, i) => `${i + 1}. ${it[0]} — Qty: ${it[1]} — ${it[2]}${kitHave[kitKey(it)] ? " [HAVE]" : " [NEED]"}`).join("\n")}\n\nCheck expiry every 6 months. Call 112 in any serious emergency.`;
+    const b = new Blob([txt], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(b);
+    a.download = `suraksha-${kitType}-kit.txt`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    showToast(isHi ? "किट लिस्ट डाउनलोड हो गई" : "Downloaded");
+  };
+
+  const resetKit = () => {
+    setKitHave((prev) => {
+      const copyMap = { ...prev };
+      kitItems.forEach((it) => {
+        delete copyMap[kitKey(it)];
+      });
+      try {
+        localStorage.setItem("suraksha_kit_have", JSON.stringify(copyMap));
+      } catch {}
+      return copyMap;
+    });
+    showToast(isHi ? "किट चेक रीसेट हो गया" : "Kit check reset");
+  };
+
+  // Filtered guides for the directory section
+  const filteredGuides = GUIDES.filter((g) => {
+    if (!searchGuideQuery.trim()) return true;
+    const q = searchGuideQuery.toLowerCase();
+    return (
+      g.en.toLowerCase().includes(q) ||
+      g.hi.toLowerCase().includes(q) ||
+      g.enD.toLowerCase().includes(q) ||
+      g.hiD.toLowerCase().includes(q) ||
+      g.kw.some((k) => k.toLowerCase().includes(q))
+    );
+  });
+
+  const activeGuideObj = GUIDES.find((g) => g.id === currentGuideId) || null;
 
   return (
-    <main id="top" className="main-content">
+    <main id="top">
       {/* ================= HERO SECTION ================= */}
-      <section className="hero-section">
-        <div className="container">
-          <div className="hero-card">
-            {/* Offline Editorial SVG Backdrop */}
-            <div className="hero-bg-art" aria-hidden="true">
-              <svg viewBox="0 0 1200 620" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <linearGradient id="heroSky" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#102D23" />
-                    <stop offset="55%" stopColor="#184536" />
-                    <stop offset="100%" stopColor="#275B43" />
-                  </linearGradient>
-                  <radialGradient id="warmSun" cx="78%" cy="28%" r="48%">
-                    <stop offset="0%" stopColor="#FDE02E" stopOpacity="0.24" />
-                    <stop offset="60%" stopColor="#EE552A" stopOpacity="0.08" />
-                    <stop offset="100%" stopColor="#102D23" stopOpacity="0" />
-                  </radialGradient>
-                </defs>
-                <rect width="1200" height="620" fill="url(#heroSky)" />
-                <rect width="1200" height="620" fill="url(#warmSun)" />
-                <path d="M0 470 Q 280 390 560 455 T 1200 410 L 1200 620 L 0 620 Z" fill="#0D251D" opacity="0.65" />
-                <path d="M0 530 Q 340 475 720 520 T 1200 490 L 1200 620 L 0 620 Z" fill="#0A1E17" opacity="0.82" />
-                <circle cx="930" cy="215" r="145" fill="#BCD8A6" opacity="0.10" />
-                <circle cx="930" cy="215" r="98" fill="#FDE02E" opacity="0.11" />
-                {/* Stylized First-Aid Shield Emblem */}
-                <g transform="translate(838, 128)" opacity="0.92">
-                  <path d="M92 8 L174 38 V104 C174 156 138 202 92 216 C46 202 10 156 10 104 V38 Z" fill="#154032" stroke="#BCD8A6" strokeWidth="3" />
-                  <rect x="78" y="64" width="28" height="86" rx="7" fill="#FDE02E" />
-                  <rect x="49" y="93" width="86" height="28" rx="7" fill="#FDE02E" />
-                </g>
-                {/* Decorative Pulse Line */}
-                <path d="M620 430 H750 L785 370 L820 470 L855 405 L885 430 H1160" fill="none" stroke="#BCD8A6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" opacity="0.45" />
-              </svg>
+      <div className="wrap hero">
+        <svg className="leaf" style={{ left: "-18px", top: "70px", width: "64px" }} viewBox="0 0 100 100" aria-hidden="true">
+          <path d="M50 5C20 30 10 60 50 95C90 60 80 30 50 5Z" fill="#8BC34A" opacity=".55" />
+          <path d="M50 10V90" stroke="#4A7C2E" strokeWidth="3" />
+        </svg>
+        <svg className="leaf" style={{ right: "42%", top: "8px", width: "38px" }} viewBox="0 0 100 100" aria-hidden="true">
+          <path d="M50 5C20 30 10 60 50 95C90 60 80 30 50 5Z" fill="#AED581" />
+        </svg>
+
+        <div className="hero-grid">
+          <div>
+            <span className="hero-badge">🌿 <span>{copy.eyebrow || "ON-DEVICE FIRST-AID AI • INDIA"}</span></span>
+            <h1>
+              {isHi ? (
+                <>
+                  तुरंत फ़र्स्ट-एड स्टेप्स।<br />
+                  <em>सिग्नल न हो?</em><br />
+                  कोई बात नहीं।
+                </>
+              ) : (
+                <>
+                  Instant first-aid.<br />
+                  <em>Zero signal?</em><br />
+                  No problem.
+                </>
+              )}
+            </h1>
+            <p className="lead">
+              {copy.lead || "Suraksha — offline first-aid AI. Ask anything in Hindi or English and get instant emergency steps, even with no internet."}
+            </p>
+            <div className="hero-ctas">
+              <a href="#ask" className="cta-dark">
+                {isHi ? "सुरक्षा से पूछें →" : "Ask Suraksha →"}
+              </a>
+              <a href="#guides" className="cta-light">
+                {isHi ? "गाइड देखें" : "Browse Guides"}
+              </a>
             </div>
-
-            <div className="hero-content">
-              <div className="hero-pill-row">
-                <span className="status-pill">
-                  <span className="status-dot"></span> <span>{copy.offlineBadge || "ON-DEVICE • OFFLINE READY"}</span>
-                </span>
-                <span className="lang-pill">{copy.bilingualBadge || "Hindi • English • Hinglish"}</span>
+            <div className="stats">
+              <div className="stat">
+                <b>{copy.s1 || "12 Verified Protocols"}</b>
+                <span>{copy.s1s || "Clear numbered steps"}</span>
               </div>
-
-              <h1 className="hero-title" dangerouslySetInnerHTML={{ __html: copy.heroTitle || 'INSTANT FIRST-AID.<br><span class="highlight-yellow">ZERO INTERNET.</span>' }} />
-
-              <p className="hero-desc">
-                {copy.heroDesc || "Ask anything in Hindi or English and get clear, numbered emergency & daily first-aid steps in seconds — completely offline on your device."}
-              </p>
-
-              <div className="hero-cta-row">
-                <button type="button" className="btn-voice-hero" onClick={() => openVoiceModal()}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" y1="19" x2="12" y2="22" />
-                  </svg>
-                  <span>{copy.speakCta || "Speak to Assistant"}</span>
-                </button>
-                <a href="#guides" className="btn-outline-hero">{copy.browseCta || "Browse 24 Guides"}</a>
-                <EmergencyButton number="112" variant="hero" label={copy.call112Cta || "Call 112 Now"} />
+              <div className="stat">
+                <b>{copy.s2 || "Hindi + English"}</b>
+                <span>{copy.s2s || "Devanagari & Hinglish"}</span>
+              </div>
+              <div className="stat">
+                <b>{copy.s3 || "0 KB Internet Needed"}</b>
+                <span>{copy.s3s || "Runs 100% on-device"}</span>
               </div>
             </div>
           </div>
 
-          {/* Attached Dual-Tone Split Strip (Urgent + Ask Box) */}
-          <div className="split-strip">
-            <div className="strip-yellow">
-              <div className="strip-icon-badge" aria-hidden="true">
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#112E24" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
-                </svg>
-              </div>
-              <div className="strip-yellow-copy">
-                <div className="strip-kicker">{copy.urgentKicker || "LIFE-THREATENING EMERGENCY?"}</div>
-                <p className="strip-text">{copy.urgentText || "Dial India's 24/7 national helpline immediately while following first-aid steps."}</p>
-                <EmergencyButton number="112" variant="strip" label={copy.urgentBtn || "Call 112 →"} />
-              </div>
+          <div className="hero-visual" id="ask">
+            <div className="splash"></div>
+            <div
+              style={{
+                position: "absolute",
+                top: "-18px",
+                left: "6px",
+                zIndex: 3,
+                background: "#fff",
+                border: "1px solid #E8DCC0",
+                borderRadius: "14px 14px 14px 4px",
+                padding: "9px 13px",
+                transform: "rotate(-3deg)",
+                boxShadow: "0 10px 24px rgba(20,54,32,.12)",
+                fontFamily: "var(--serif-display)",
+                fontStyle: "italic",
+                fontSize: "14.5px",
+                color: "#143620"
+              }}
+            >
+              no internet? <b style={{ fontStyle: "normal" }}>no tension</b> 🌿
+            </div>
+            <div style={{ textAlign: "center", fontSize: "54px", lineHeight: 1, marginBottom: "6px" }}>
+              🩹&nbsp;🚑&nbsp;🍃
             </div>
 
-            <div className="strip-sage">
-              <div className="strip-kicker">{copy.askKicker || "ASK SURAKSHA (HINDI / ENGLISH)"}</div>
-              <form onSubmit={handleSearchSubmit} className="ask-form" role="search">
-                <div className="search-field-wrap">
-                  <input
-                    type="search"
-                    value={localInput}
-                    onChange={(e) => setLocalInput(e.target.value)}
-                    className="search-input"
-                    placeholder="Kya hua? What happened? (e.g., burn, haath me dard, saap)"
-                    autoComplete="off"
-                    aria-label="Kya hua? What happened?"
-                  />
-                  {localInput && (
-                    <button type="button" onClick={handleClearSearch} className="search-clear-btn" aria-label="Clear search">
-                      &times;
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => openVoiceModal()}
-                    className="search-mic-btn"
-                    aria-label="Speak to Assistant"
-                    title="Speak in Hindi or English"
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                      <line x1="12" y1="19" x2="12" y2="22" />
-                    </svg>
-                  </button>
-                </div>
-                <button type="submit" className="ask-submit-btn">
-                  {copy.findStepsBtn || "Find Steps"}
+            <div className="askcard">
+              <div className="askhead">
+                <span className="t">
+                  <span className="shield">✚</span>
+                  <span>{copy.askTitle || "Ask Suraksha"}</span>
+                </span>
+                <span className="pill">
+                  <span className="dot"></span>
+                  <span>{copy.ondevice || "ON-DEVICE • OFFLINE"}</span>
+                </span>
+              </div>
+
+              <form className="askrow" id="askForm" onSubmit={handleAskSubmit}>
+                <input
+                  id="askInput"
+                  type="text"
+                  autoComplete="off"
+                  value={askInput}
+                  onChange={(e) => setAskInput(e.target.value)}
+                  placeholder={
+                    isHi
+                      ? "क्या हुआ? (जैसे, जल गया, साँप, गले में अटका)"
+                      : "Kya hua? What happened? (e.g., burn, साँप, choking)"
+                  }
+                />
+                <button
+                  className={`micbtn ${isListening ? "listening" : ""}`}
+                  type="button"
+                  id="micBtn"
+                  onClick={handleVoiceAsk}
+                  aria-label="Speak your emergency"
+                >
+                  {isListening ? "●" : "🎙"}
+                </button>
+                <button className="askbtn" type="submit">
+                  {copy.askBtn || "Ask"}
                 </button>
               </form>
 
-              <div className="quick-chips" aria-label="Quick search examples">
-                <button type="button" className="chip" onClick={() => handleChipClick("snake bite")}>Snake Bite</button>
-                <button type="button" className="chip" onClick={() => handleChipClick("burn")}>Burns</button>
-                <button type="button" className="chip" onClick={() => handleChipClick("haath me dard hai")}>हाथ में दर्द</button>
-                <button type="button" className="chip" onClick={() => handleChipClick("sar dard")}>सिर दर्द</button>
-                <button type="button" className="chip" onClick={() => handleChipClick("bukhar")}>बुखार</button>
+              {/* Quick Chips */}
+              <div className="chips" id="chips">
+                {["snake", "burns", "choking", "cpr", "heat", "bleeding"].map((id) => {
+                  const g = GUIDES.find((x) => x.id === id);
+                  if (!g) return null;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      className="chip"
+                      onClick={() => handleQuickAsk(id)}
+                    >
+                      {getGuideTitle(g)}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Recent Checks */}
+              <div className="recent" id="recent">
+                <div className="lbl" id="recentLbl">
+                  {isHi ? "हाल की जाँचें" : "RECENT CHECKS"}
+                </div>
+                <div className="chips" id="recentChips" style={{ marginTop: 0 }}>
+                  {recentList.length > 0 ? (
+                    recentList.map((rid) => {
+                      const g = GUIDES.find((x) => x.id === rid);
+                      if (!g) return null;
+                      return (
+                        <button
+                          key={rid}
+                          type="button"
+                          className="chip"
+                          onClick={() => handleQuickAsk(rid)}
+                        >
+                          ↺ {getGuideTitle(g)}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <span className="none" id="recentNone">
+                      {isHi
+                        ? "अभी कोई जाँच नहीं हुई — ऊपर पूछें और आपकी गाइड यहाँ दिखेंगी।"
+                        : "No checks yet — ask above and your recent guides will appear here for one-tap reopening."}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Result Area */}
+              {activeGuideObj ? (
+                <div className="result flash" id="result">
+                  <span className={`sev ${activeGuideObj.sev === "high" ? "high" : "med"}`}>
+                    {activeGuideObj.sev === "high"
+                      ? isHi
+                        ? "⚠ गंभीर — 112 बुलाएँ"
+                        : "⚠ SERIOUS — CALL 112"
+                      : isHi
+                      ? "मध्यम गंभीरता"
+                      : "MODERATE"}
+                  </span>
+                  <h3>{getGuideTitle(activeGuideObj)}</h3>
+                  <p style={{ color: "var(--muted)", margin: "4px 0 0" }}>
+                    {getGuideDesc(activeGuideObj)}
+                  </p>
+                  <ol className="steps">
+                    {getGuideSteps(activeGuideObj).map((s, idx) => (
+                      <li key={idx}>{s}</li>
+                    ))}
+                  </ol>
+                  <div className="donts">
+                    <b>{isHi ? "क्या न करें: " : "Do NOT: "}</b>
+                    {getGuideDont(activeGuideObj)}
+                  </div>
+                  <div className="result-actions">
+                    <a className="btn red" href="tel:112">
+                      📞 {isHi ? "112 बुलाएँ" : "Call 112"}
+                    </a>
+                    <button
+                      type="button"
+                      className="btn solid"
+                      onClick={() => handleSpeakSteps(activeGuideObj)}
+                    >
+                      🔊 {isSpeaking ? (isHi ? "रोकें" : "Stop listening") : (isHi ? "स्टेप्स सुनें" : "Listen to steps")}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleCopySteps(activeGuideObj)}
+                    >
+                      ⧉ {isHi ? "स्टेप्स कॉपी करें" : "Copy steps"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{ background: "var(--lime3)", border: "1.5px solid var(--dark)" }}
+                      onClick={() => handleAskAI(`${getGuideTitle(activeGuideObj)} emergency first-aid`)}
+                      disabled={aiLoading}
+                    >
+                      ✨ {aiLoading ? (isHi ? "AI सोच रहा है..." : "Asking AI...") : (isHi ? "विस्तृत AI सहायता" : "Ask AI for detailed help")}
+                    </button>
+                  </div>
+
+                  {aiResponse && (
+                    <div className="ai-response-box" style={{ marginTop: "16px" }}>
+                      <div className="ai-response-header">
+                        <span className="ai-response-title">Suraksha AI Guidance</span>
+                        <span className={aiResponse.badgeClass}>{aiResponse.badgeText}</span>
+                      </div>
+                      <p className="ai-response-text" style={{ whiteSpace: "pre-wrap" }}>
+                        {aiResponse.text}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : noMatchQuery ? (
+                <div className="result" id="result">
+                  <h3>{isHi ? "सुनिश्चित नहीं — सुरक्षित रहें" : "Not sure — play it safe"}</h3>
+                  <p style={{ color: "var(--muted)" }}>
+                    {isHi
+                      ? "मैं इसे किसी गाइड से नहीं मिला पाया। अगर व्यक्ति गंभीर हालत में है, तुरंत 112 बुलाएँ या नीचे AI से विस्तृत मदद लें।"
+                      : "I could not match that to a standard offline guide. If the person is serious, call 112 now or ask our Hybrid AI for guidance."}
+                  </p>
+                  <div className="result-actions">
+                    <a className="btn red" href="tel:112">
+                      📞 Call 112
+                    </a>
+                    <a className="btn" href="#guides">
+                      {isHi ? "सभी गाइड देखें" : "See all guides"}
+                    </a>
+                    <button
+                      type="button"
+                      className="btn solid"
+                      onClick={() => handleAskAI(noMatchQuery)}
+                      disabled={aiLoading}
+                    >
+                      ✨ {aiLoading ? "Thinking..." : "Ask AI for detailed help"}
+                    </button>
+                  </div>
+
+                  {aiResponse && (
+                    <div className="ai-response-box" style={{ marginTop: "16px" }}>
+                      <div className="ai-response-header">
+                        <span className="ai-response-title">Suraksha AI Guidance</span>
+                        <span className={aiResponse.badgeClass}>{aiResponse.badgeText}</span>
+                      </div>
+                      <p className="ai-response-text" style={{ whiteSpace: "pre-wrap" }}>
+                        {aiResponse.text}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="result empty" id="result">
+                  <div style={{ fontSize: "26px" }}>⌕</div>
+                  <div className="big">{copy.emptyT || "Type any emergency or pick a guide below"}</div>
+                  <div>{copy.emptyS || "Try typing burn, snake bite, khoon, साँप, or tap a quick chip above."}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="charm-ribbon" aria-hidden="true">
+          <span className="line"></span>
+          <p>
+            <span>✦</span> &nbsp;ghabrayein nahi — bas step-by-step follow karein&nbsp; <span>✦</span>
+          </p>
+          <span className="line"></span>
+        </div>
+      </div>
+
+      {/* ================= MADAD SMS ================= */}
+      <section id="madad" style={{ paddingTop: "18px", paddingBottom: "10px" }}>
+        <div className="wrap">
+          <div className="sec-head">
+            <h2>{copy.madadH || "Madad SMS — One Tap Help"}</h2>
+            <p>
+              {copy.madadP ||
+                "Accident ya emergency mein ek tap — aapke family number par location ke saath SMS jayega. SMS ko internet nahi chahiye, isliye ye offline bhi chalega."}
+            </p>
+          </div>
+
+          <div className="madad-card">
+            <div className="madad-top">
+              <div className="madad-badge" aria-hidden="true">
+                ✉️
+              </div>
+              <div>
+                <h3>{copy.madadCardT || "Save your family number"}</h3>
+                <p>
+                  {copy.madadCardP ||
+                    "Pehle ek trusted family / friend ka number save karein. Emergency mein neeche wala bada button dabate hi SMS app khulega — message aur aapki GPS location ready milegi, bas Send dabana hai."}
+                </p>
               </div>
             </div>
+
+            <form className="madad-form" id="madadForm" onSubmit={handleAddMadadContact}>
+              <input
+                id="madadName"
+                type="text"
+                autoComplete="name"
+                value={madadName}
+                onChange={(e) => setMadadName(e.target.value)}
+                placeholder={isHi ? "नाम — जैसे माँ, भैया" : "Name — e.g. Maa, Bhaiya"}
+              />
+              <input
+                id="madadPhone"
+                type="tel"
+                autoComplete="tel"
+                inputMode="tel"
+                value={madadPhone}
+                onChange={(e) => setMadadPhone(e.target.value)}
+                placeholder={isHi ? "मोबाइल नंबर — जैसे 98765 43210" : "Mobile number — e.g. 98765 43210"}
+              />
+              <button type="submit" className="madad-add" id="madadAddBtn">
+                {copy.madadAdd || "＋ Save Number"}
+              </button>
+            </form>
+
+            {madadContacts.length === 0 ? (
+              <div id="madadEmpty" className="madad-empty">
+                {copy.madadEmpty ||
+                  "Abhi koi number save nahi hai. Upar apne family member ka number save karein — wahi number Madad SMS ke liye use hoga."}
+              </div>
+            ) : (
+              <div className="madad-list" id="madadList" aria-live="polite">
+                {madadContacts.map((c, i) => (
+                  <div key={i} className="madad-item">
+                    <div>
+                      <b>{c.name}</b>
+                      <span>{c.phone}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="madad-remove"
+                      onClick={() => handleRemoveMadadContact(i)}
+                      aria-label="Remove number"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="madad-send"
+              id="madadSendBtn"
+              onClick={handleSendMadadSMS}
+              disabled={madadSending}
+            >
+              <span aria-hidden="true">🆘</span>
+              <span>{madadSending ? (isHi ? "📍 लोकेशन ले रहे हैं…" : "📍 Getting location…") : copy.madadSend || "Madad SMS Bhejo — Location ke Saath"}</span>
+            </button>
+
+            {madadStatus && (
+              <div className="madad-status show" id="madadStatus" role="status">
+                {madadStatus}
+              </div>
+            )}
+
+            <p className="madad-note">
+              {copy.madadNote ||
+                "Message: “Madad chahiye, main yahan hoon” + Google Maps location link. Location ke liye phone ka GPS / Location ON rakhein. SMS bhejne par aapke plan ke normal SMS charges lag sakte hain. Serious emergency mein pehle 112 bhi call karein."}
+            </p>
           </div>
         </div>
       </section>
 
-      {/* ================= GUIDES DIRECTORY SECTION ================= */}
-      <section className="section" id="guides">
-        <div className="container">
-          <div className="section-head reveal">
-            <span className="section-eyebrow">{copy.guidesEyebrow || "VERIFIED OFFLINE PROTOCOLS"}</span>
-            <h2 className="section-title" dangerouslySetInnerHTML={{ __html: copy.guidesTitle || 'INSTANT <span class="marker-underline">FIRST-AID</span> &amp; DAILY CARE' }} />
-            <p className="section-sub">
-              {copy.guidesSub || "Tap any card for numbered steps with interactive checkmarks and Hindi/English voice read-aloud."}
+      {/* ================= EMERGENCY GUIDES DIRECTORY ================= */}
+      <section id="guides">
+        <div className="wrap">
+          <div className="sec-head">
+            <h2>{copy.gH || "Emergency Guides"}</h2>
+            <p>
+              {copy.gP ||
+                "Tap any emergency for step-by-step first aid, what NOT to do, and when to call 112. Everything works offline."}
             </p>
           </div>
 
-          <div className="filter-bar reveal" role="tablist" aria-label="Filter guides by category">
-            <button
-              type="button"
-              className={`filter-tab ${filter === "all" ? "active" : ""}`}
-              onClick={() => setFilter("all")}
-              role="tab"
-              aria-selected={filter === "all"}
-            >
-              {copy.tabAll || "All (24)"}
-            </button>
-            <button
-              type="button"
-              className={`filter-tab ${filter === "emergency" ? "active" : ""}`}
-              onClick={() => setFilter("emergency")}
-              role="tab"
-              aria-selected={filter === "emergency"}
-            >
-              {copy.tabEmergency || "Emergencies (12)"}
-            </button>
-            <button
-              type="button"
-              className={`filter-tab ${filter === "daily" ? "active" : ""}`}
-              onClick={() => setFilter("daily")}
-              role="tab"
-              aria-selected={filter === "daily"}
-            >
-              {copy.tabDaily || "Daily Care (12)"}
-            </button>
-            <button
-              type="button"
-              className={`filter-tab ${filter === "trauma" ? "active" : ""}`}
-              onClick={() => setFilter("trauma")}
-              role="tab"
-              aria-selected={filter === "trauma"}
-            >
-              {copy.tabTrauma || "Trauma & Bites"}
-            </button>
-            <button
-              type="button"
-              className={`filter-tab ${filter === "airway" ? "active" : ""}`}
-              onClick={() => setFilter("airway")}
-              role="tab"
-              aria-selected={filter === "airway"}
-            >
-              {copy.tabAirway || "Airway & Heart"}
-            </button>
+          <div className="toolbar">
+            <input
+              id="guideSearch"
+              type="search"
+              value={searchGuideQuery}
+              onChange={(e) => setSearchGuideQuery(e.target.value)}
+              placeholder={isHi ? "गाइड खोजें — जलना, साँप, दिल का दौरा…" : "Search guides — burn, साँप, dil ka daura…"}
+            />
           </div>
 
-          {loading ? (
-            <LoadingSpinner size="lg" label="Updating guides..." />
-          ) : guides.length > 0 ? (
-            <div className="guides-grid">
-              {guides.map((g) => (
-                <FirstAidCard key={g.id} guide={g} />
-              ))}
-            </div>
-          ) : (
-            <div className="no-match-box visible" role="status">
-              <p className="no-match-title">{copy.noMatchText || "No guide for this yet — call 112 for emergencies."}</p>
-              <div className="no-match-actions">
-                <EmergencyButton number="112" variant="solid" label="Call 112 Now" />
+          <div className="grid" id="guideGrid">
+            {filteredGuides.length > 0 ? (
+              filteredGuides.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  className="gcard"
+                  onClick={() => handleSelectGuide(g.id, true)}
+                >
+                  <span className="gicon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                  </span>
+                  <h3>{getGuideTitle(g)}</h3>
+                  <p>{getGuideDesc(g)}</p>
+                  <div className="meta">
+                    {isHi ? "स्टेप्स देखें →" : "View steps →"} &nbsp;•&nbsp;{" "}
+                    {g.sev === "high"
+                      ? isHi
+                        ? "गंभीर"
+                        : "Serious"
+                      : isHi
+                      ? "मध्यम"
+                      : "Moderate"}
+                  </div>
+                </button>
+              ))
+            ) : (
+              <p style={{ color: "var(--muted)", gridColumn: "1/-1", textAlign: "center" }}>
+                {isHi ? "कोई गाइड नहीं मिली। कुछ और लिखकर देखें।" : "No guide matched. Try another word."}
+              </p>
+            )}
+          </div>
+
+          {/* Inline Expanded Guide Detail */}
+          {activeGuideObj && (
+            <div className="detail open" id="detail">
+              <span className={`sev ${activeGuideObj.sev === "high" ? "high" : "med"}`}>
+                {activeGuideObj.sev === "high"
+                  ? isHi
+                    ? "⚠ गंभीर — 112 बुलाएँ"
+                    : "⚠ SERIOUS — CALL 112"
+                  : isHi
+                  ? "मध्यम गंभीरता"
+                  : "MODERATE"}
+              </span>
+              <h3>{getGuideTitle(activeGuideObj)}</h3>
+              <p style={{ color: "var(--muted)", margin: "4px 0 0" }}>
+                {getGuideDesc(activeGuideObj)}
+              </p>
+              <ol className="steps">
+                {getGuideSteps(activeGuideObj).map((s, idx) => (
+                  <li key={idx}>{s}</li>
+                ))}
+              </ol>
+              <div className="donts">
+                <b>{isHi ? "क्या न करें: " : "Do NOT: "}</b>
+                {getGuideDont(activeGuideObj)}
+              </div>
+              <div className="result-actions">
+                <a className="btn red" href="tel:112">
+                  📞 {isHi ? "112 बुलाएँ" : "Call 112"}
+                </a>
                 <button
                   type="button"
-                  className="btn-ai-help"
-                  style={{ width: "auto", margin: 0 }}
-                  onClick={handleAskAISearch}
-                  disabled={aiSearchLoading}
+                  className="btn solid"
+                  onClick={() => handleSpeakSteps(activeGuideObj)}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                  </svg>
-                  <span>{aiSearchLoading ? "Asking AI..." : "Ask AI for detailed help"}</span>
+                  🔊 {isSpeaking ? (isHi ? "रोकें" : "Stop listening") : (isHi ? "स्टेप्स सुनें" : "Listen to steps")}
                 </button>
                 <button
                   type="button"
-                  className="btn-reset-search"
-                  onClick={() => {
-                    handleClearSearch();
-                    setFilter("all");
-                    setAiSearchResponse(null);
-                  }}
+                  className="btn"
+                  onClick={() => handleCopySteps(activeGuideObj)}
                 >
-                  {copy.showAllBtn || "Show All Guides"}
+                  ⧉ {isHi ? "स्टेप्स कॉपी करें" : "Copy steps"}
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ background: "var(--lime3)", border: "1.5px solid var(--dark)" }}
+                  onClick={() => handleAskAI(`${getGuideTitle(activeGuideObj)} detailed precautions and first aid`)}
+                  disabled={aiLoading}
+                >
+                  ✨ {aiLoading ? (isHi ? "AI सोच रहा है..." : "Asking AI...") : (isHi ? "विस्तृत AI सहायता" : "Ask AI for detailed help")}
                 </button>
               </div>
 
-              {aiSearchResponse && (
-                <div className="ai-response-box" style={{ maxWidth: "620px", margin: "18px auto 0" }}>
+              {aiResponse && (
+                <div className="ai-response-box" style={{ marginTop: "16px" }}>
                   <div className="ai-response-header">
-                    <span className="ai-response-title">AI Assistant Guidance</span>
-                    <span className={aiSearchResponse.badgeClass}>{aiSearchResponse.badgeText}</span>
+                    <span className="ai-response-title">Suraksha AI Guidance</span>
+                    <span className={aiResponse.badgeClass}>{aiResponse.badgeText}</span>
                   </div>
-                  <p className="ai-response-text">{aiSearchResponse.text}</p>
+                  <p className="ai-response-text" style={{ whiteSpace: "pre-wrap" }}>
+                    {aiResponse.text}
+                  </p>
                 </div>
               )}
             </div>
@@ -467,386 +1105,368 @@ export default function Homes() {
         </div>
       </section>
 
-      {/* ================= IMPACT BAND ================= */}
-      <section className="section" id="impact">
-        <div className="container">
-          <div className="impact-band reveal">
-            <div className="impact-left">
-              <span className="impact-pill">{copy.impactEyebrow || "BUILT FOR ZERO-NETWORK MOMENTS"}</span>
-              <h2 className="impact-title" dangerouslySetInnerHTML={{ __html: copy.impactTitle || 'WORKS WHEN SIGNAL <span class="impact-accent">DISAPPEARS.</span>' }} />
-              <p className="impact-desc">
-                {copy.impactDesc || "No server round-trips, no login walls, and no external fonts or scripts. Every protocol and voice command runs directly inside your browser."}
+      {/* ================= 3 REASONS SECTION ================= */}
+      <section style={{ paddingTop: "10px" }}>
+        <div className="wrap">
+          <div className="sec-head">
+            <h2>{copy.whyH || "3 Reasons To Choose Suraksha"}</h2>
+            <p>
+              {isHi
+                ? "ताज़ा, सरल और हर वक्त तैयार — जैसे एक फ़र्स्ट-एड किट जो खुद आपको रास्ता दिखाए।"
+                : "Fresh, simple and ready when you need it most — like a first-aid kit that talks you through it."}
+            </p>
+          </div>
+          <div className="cards3">
+            <div className="rcard">
+              <div className="n">01</div>
+              <h3>{copy.r1t || "Works 24/7, fully offline"}</h3>
+              <p>
+                {copy.r1p ||
+                  "No signal in a village, lift, highway or basement? Suraksha still answers in seconds — the guides live on your device, not on a server."}
               </p>
-              <div className="impact-stat-big">
-                <span className="counter-num">100</span><span className="counter-unit">%</span>
-                <span className="counter-label">{copy.counterLabel || "OFFLINE CAPABLE ON-DEVICE"}</span>
-              </div>
             </div>
-
-            <div className="impact-bars" aria-label="Key capabilities">
-              <div className="bar-col">
-                <div className="bar-fill" style={{ "--bar-h": "58%" }}>
-                  <span className="bar-val">12</span>
-                  <span className="bar-lbl">{copy.bar1 || "Core Emergencies"}</span>
-                </div>
-              </div>
-              <div className="bar-col">
-                <div className="bar-fill" style={{ "--bar-h": "76%" }}>
-                  <span className="bar-val">24</span>
-                  <span className="bar-lbl">{copy.bar2 || "Total Guides"}</span>
-                </div>
-              </div>
-              <div className="bar-col">
-                <div className="bar-fill bar-fill-bright" style={{ "--bar-h": "100%" }}>
-                  <span className="bar-val">0 KB</span>
-                  <span className="bar-lbl">{copy.bar3 || "Internet Needed"}</span>
-                </div>
-              </div>
+            <div className="rcard">
+              <div className="n">02</div>
+              <h3>{copy.r2t || "Hindi + English, spoken aloud"}</h3>
+              <p>
+                {copy.r2p ||
+                  "Ask in Hinglish or Devanagari — “haath jal gaya”, “saans nahi aa rahi” — and tap Listen to hear the steps read out while your hands are busy helping."}
+              </p>
+            </div>
+            <div className="rcard">
+              <div className="n">03</div>
+              <h3>{copy.r3t || "Clear do’s and don’ts"}</h3>
+              <p>
+                {copy.r3p ||
+                  "Every guide shows the steps in order, the common mistakes to avoid, and a clear line on when home first aid is not enough and 112 must be called."}
+              </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ================= FAQ SECTION ================= */}
-      <section className="section" id="faq">
-        <div className="container">
-          <div className="faq-layout reveal">
-            <div className="faq-intro">
-              <span className="section-eyebrow">{copy.faqEyebrow || "QUESTIONS & ANSWERS"}</span>
-              <h2 className="section-title" dangerouslySetInnerHTML={{ __html: copy.faqTitle || 'HOW SURAKSHA <span class="marker-underline">WORKS</span>' }} />
-              <p className="section-sub">
-                {copy.faqSub || "Everything you need to know about offline access, Hindi voice support, and medical safety."}
-              </p>
-            </div>
-
-            <div className="faq-list">
-              <div className="faq-item">
-                <button
-                  type="button"
-                  className="faq-q"
-                  onClick={() => toggleFaq(0)}
-                  aria-expanded={openFaq[0]}
-                >
-                  <span>{copy.faq1Q || "Does Suraksha really work without internet?"}</span>
-                  <span className="faq-plus" aria-hidden="true">{openFaq[0] ? "−" : "+"}</span>
-                </button>
-                {openFaq[0] && (
-                  <div className="faq-a">
-                    <p>{copy.faq1A || "Yes. All 24 guides, search indexing, icons, and styling are stored locally inside the app files with zero external CDNs or fonts. Once loaded, it works offline."}</p>
+      {/* ================= HOW IT WORKS BANNER ================= */}
+      <section id="how" style={{ paddingTop: "6px" }}>
+        <div className="wrap">
+          <div className="banner">
+            <div>
+              <h2>{copy.howH || "Follow These 3 Simple Steps"}</h2>
+              <p>{copy.howP || "From panic to action in under a minute."}</p>
+              <div className="banner-steps">
+                <div className="bstep">
+                  <b>1</b>
+                  <div>
+                    <strong>{copy.st1t || "Describe the emergency"}</strong>
+                    <span>
+                      {copy.st1p ||
+                        "Type or tap what happened — in English, Hindi or Hinglish. No medical words needed."}
+                    </span>
                   </div>
-                )}
-              </div>
-
-              <div className="faq-item">
-                <button
-                  type="button"
-                  className="faq-q"
-                  onClick={() => toggleFaq(1)}
-                  aria-expanded={openFaq[1]}
-                >
-                  <span>{copy.faq2Q || "How do I use the Hindi & English Voice Assistant?"}</span>
-                  <span className="faq-plus" aria-hidden="true">{openFaq[1] ? "−" : "+"}</span>
-                </button>
-                {openFaq[1] && (
-                  <div className="faq-a">
-                    <p>{copy.faq2A || 'Tap "Speak to Assistant" or the mic button and speak naturally — for example, "mere haath me dard hai", "sar dard ho raha hai", or "snake bite". Suraksha finds the matching guide and reads the steps aloud.'}</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="faq-item">
-                <button
-                  type="button"
-                  className="faq-q"
-                  onClick={() => toggleFaq(2)}
-                  aria-expanded={openFaq[2]}
-                >
-                  <span>{copy.faq3Q || "Is this a substitute for a doctor or hospital?"}</span>
-                  <span className="faq-plus" aria-hidden="true">{openFaq[2] ? "−" : "+"}</span>
-                </button>
-                {openFaq[2] && (
-                  <div className="faq-a">
-                    <p>{copy.faq3A || "No. Suraksha provides general first-aid information, not medical advice. In any serious or worsening emergency, call 112 or 108 immediately."}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ================= FLOATING ACTION BUTTON ================= */}
-      <button
-        type="button"
-        className="fab-voice"
-        onClick={() => openVoiceModal()}
-        aria-label="Open Speak to Assistant"
-      >
-        <span className="fab-ring" aria-hidden="true"></span>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-          <line x1="12" y1="19" x2="12" y2="22" />
-        </svg>
-        <span className="fab-label">{copy.fabLabel || "Speak"}</span>
-      </button>
-
-      {/* ================= GUIDE CHECKLIST MODAL ================= */}
-      {activeGuide && (
-        <div
-          className="modal-backdrop open"
-          role="dialog"
-          aria-modal="true"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) handleCloseGuide();
-          }}
-        >
-          <div className="modal-sheet">
-            <div className="modal-header">
-              <button type="button" className="modal-back-btn" onClick={handleCloseGuide}>
-                &larr; <span>{copy.backAll || "All guides"}</span>
-              </button>
-              <span className="badge-ondevice">ON-DEVICE &bull; OFFLINE</span>
-            </div>
-
-            <div className="modal-body">
-              <div className="modal-title-row">
-                <div>
-                  <h2 className="modal-title">{isHi ? activeGuide.hi : activeGuide.en}</h2>
-                  <p className="modal-subtitle">{isHi ? activeGuide.en : activeGuide.hi}</p>
                 </div>
-                <span className="progress-pill">
-                  {getCompletedCount(activeGuide.id)} / {(isHi ? activeGuide.stepsHi : activeGuide.steps).length} done
-                </span>
-              </div>
-
-              <div className="modal-audio-bar">
-                <button
-                  type="button"
-                  className={`btn-listen ${modalIsSpeaking ? "active" : ""}`}
-                  onClick={handleModalListen}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                  </svg>
-                  <span>{modalIsSpeaking ? (isHi ? "रोकें (Stop)" : "Stop Audio") : (isHi ? "आवाज़ में सुनें" : "Listen to Steps")}</span>
-                </button>
-                <span className="audio-hint">{copy.tapCheckHint || "Tap any step to mark complete"}</span>
-              </div>
-
-              <ol className="steps-list">
-                {(isHi ? activeGuide.stepsHi : activeGuide.steps).map((stepText, idx) => {
-                  const checked = isStepChecked(activeGuide.id, idx);
-                  const isSpeakingThisStep = modalIsSpeaking && modalActiveStep === idx;
-                  return (
-                    <li
-                      key={idx}
-                      className={`step-row ${checked ? "done" : ""} ${isSpeakingThisStep ? "speaking-now" : ""}`}
-                      onClick={() => toggleStep(activeGuide.id, idx)}
-                    >
-                      <span className="step-num">{checked ? "✓" : idx + 1}</span>
-                      <span className="step-text">{stepText}</span>
-                    </li>
-                  );
-                })}
-              </ol>
-
-              {/* Ask AI for detailed help */}
-              <button
-                type="button"
-                className="btn-ai-help"
-                onClick={handleAskAIGuide}
-                disabled={aiGuideLoading}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                </svg>
-                <span>{aiGuideLoading ? "Asking AI..." : "Ask AI for detailed help"}</span>
-              </button>
-
-              {aiGuideResponse && (
-                <div className="ai-response-box">
-                  <div className="ai-response-header">
-                    <span className="ai-response-title">AI Assistant Guidance</span>
-                    <span className={aiGuideResponse.badgeClass}>{aiGuideResponse.badgeText}</span>
+                <div className="bstep">
+                  <b>2</b>
+                  <div>
+                    <strong>{copy.st2t || "Follow the instant steps"}</strong>
+                    <span>
+                      {copy.st2p ||
+                        "Get numbered first-aid steps instantly, on-device. Listen to them aloud if you can’t look at the screen."}
+                    </span>
                   </div>
-                  <p className="ai-response-text">{aiGuideResponse.text}</p>
                 </div>
-              )}
-
-              <EmergencyButton
-                number="112"
-                variant="modal"
-                label={copy.call112Now || "Call 112 now"}
-                guideId={activeGuide.id}
-              />
-
-              <p className="modal-disclaimer">
-                {copy.footerDisclaimer || "Suraksha gives general first-aid information, not medical advice. In an emergency call 112 immediately."}
-              </p>
+                <div className="bstep">
+                  <b>3</b>
+                  <div>
+                    <strong>{copy.st3t || "Call & share for help"}</strong>
+                    <span>
+                      {copy.st3p ||
+                        "One tap calls 112. Copy the steps and send them to family on WhatsApp so everyone knows what to do."}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* ================= SPEAK TO ASSISTANT VOICE MODAL ================= */}
-      {isVoiceModalOpen && (
-        <div
-          className="modal-backdrop open"
-          role="dialog"
-          aria-modal="true"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) handleCloseVoiceModal();
-          }}
-        >
-          <div className="voice-sheet">
-            <div className="voice-header">
+            <div className="banner-visual">
               <div>
-                <span className="voice-badge">ON-DEVICE &bull; VOICE</span>
-                <h2 className="voice-title">Speak to Assistant</h2>
-              </div>
-              <div className="voice-header-right">
-                <div className="voice-lang-toggle" role="group" aria-label="Voice recognition language">
-                  <button
-                    type="button"
-                    className={`vlang-btn ${voiceLang.startsWith("hi") ? "active" : ""}`}
-                    onClick={() => setVoiceLang("hi-IN")}
-                    aria-pressed={voiceLang.startsWith("hi")}
-                  >
-                    हिंदी + EN
-                  </button>
-                  <button
-                    type="button"
-                    className={`vlang-btn ${voiceLang.startsWith("en") ? "active" : ""}`}
-                    onClick={() => setVoiceLang("en-IN")}
-                    aria-pressed={voiceLang.startsWith("en")}
-                  >
-                    EN
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  className="voice-close-btn"
-                  onClick={handleCloseVoiceModal}
-                  aria-label="Close voice assistant"
-                >
-                  &times;
-                </button>
-              </div>
-            </div>
-
-            <div className="voice-body">
-              <div className="orb-stage">
-                <button
-                  type="button"
-                  className={`mic-orb ${isListening ? "listening" : ""}`}
-                  onClick={toggleListening}
-                  aria-label={isListening ? "Stop listening" : "Start listening"}
-                >
-                  {isListening && (
+                <div className="big-cross">✚</div>
+                <h3>
+                  {isHi ? (
                     <>
-                      <span className="orb-ripple r1" aria-hidden="true"></span>
-                      <span className="orb-ripple r2" aria-hidden="true"></span>
+                      10 सेकंड में<br />मदद तैयार
+                    </>
+                  ) : (
+                    <>
+                      Help in<br />under 10 seconds
                     </>
                   )}
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" y1="19" x2="12" y2="22" />
-                  </svg>
-                </button>
-
-                <div className={`waveform ${isListening ? "active" : ""}`} aria-hidden="true">
-                  <span></span><span></span><span></span><span></span><span></span>
-                </div>
-
-                <p className="voice-status">
-                  {statusMessage || (voiceLang.startsWith("hi") ? "माइक दबाएं और हिंदी या अंग्रेज़ी में कहें क्या हुआ।" : "Tap the mic and say what happened in Hindi or English.")}
+                </h3>
+                <p style={{ color: "#405347", margin: "8px 0 0" }}>
+                  {isHi ? (
+                    <>
+                      न लॉगिन। न लोडिंग।<br />सिर्फ़ साफ़ स्टेप्स, तुरंत।
+                    </>
+                  ) : (
+                    <>
+                      No login. No loading.<br />Just clear steps, instantly.
+                    </>
+                  )}
                 </p>
-                {transcript && <p className="voice-transcript">"{transcript}"</p>}
-                {!speechSupported && (
-                  <p className="voice-fallback-note">
-                    Speech recognition is not supported on this browser. Type your emergency below:
-                  </p>
-                )}
+                <a href="#ask" className="cta-dark" style={{ marginTop: "18px" }}>
+                  {isHi ? "अभी आज़माएँ →" : "Try it now →"}
+                </a>
               </div>
-
-              {/* Fallback Manual Text Bar */}
-              <form onSubmit={handleManualTypeSubmit} className="voice-type-form">
-                <input
-                  type="text"
-                  value={manualTypeInput}
-                  onChange={(e) => setManualTypeInput(e.target.value)}
-                  className="voice-type-input"
-                  placeholder="Or type here: e.g., mere haath me dard hai..."
-                  autoComplete="off"
-                />
-                <button type="submit" className="voice-type-btn">Ask</button>
-              </form>
-
-              {/* One-tap Sample Phrases */}
-              <div className="voice-samples" aria-label="Sample voice queries">
-                <button type="button" className="sample-chip" onClick={() => handleVoiceSampleClick("Mere haath me dard hai")}>Mere haath me dard hai</button>
-                <button type="button" className="sample-chip" onClick={() => handleVoiceSampleClick("Sar dard ho raha hai")}>Sar dard ho raha hai</button>
-                <button type="button" className="sample-chip" onClick={() => handleVoiceSampleClick("Snake bite")}>Snake bite</button>
-                <button type="button" className="sample-chip" onClick={() => handleVoiceSampleClick("Burn on hand")}>Burn on hand</button>
-                <button type="button" className="sample-chip" onClick={() => handleVoiceSampleClick("साँप का काटना")}>साँप का काटना</button>
-                <button type="button" className="sample-chip" onClick={() => handleVoiceSampleClick("गले में अटकना")}>गले में अटकना</button>
-              </div>
-
-              {/* Matched Result Panel */}
-              {matchedGuide && (
-                <div className="voice-result">
-                  <div className="voice-result-head">
-                    <div>
-                      <h3 className="voice-result-title">{isHi ? matchedGuide.hi : matchedGuide.en}</h3>
-                      <p className="voice-result-sub">{isHi ? matchedGuide.en : matchedGuide.hi}</p>
-                    </div>
-                    <div className="voice-result-actions">
-                      {isSpeaking ? (
-                        <button type="button" className="btn-v-stop" onClick={stopSpeaking}>Stop Audio</button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn-v-action"
-                          onClick={() => {
-                            const steps = isHi ? matchedGuide.stepsHi : matchedGuide.steps;
-                            speakSteps(steps, isHi ? "hi-IN" : "en-IN");
-                          }}
-                        >
-                          Read Aloud
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <ol className="voice-steps">
-                    {(isHi ? matchedGuide.stepsHi : matchedGuide.steps).map((s, idx) => (
-                      <li key={idx} className={activeSpeakingStep === idx ? "speaking-now" : ""}>
-                        {s}
-                      </li>
-                    ))}
-                  </ol>
-                  <div className="voice-result-footer">
-                    <button
-                      type="button"
-                      className="btn-open-full"
-                      onClick={() => {
-                        handleCloseVoiceModal();
-                        openGuide(matchedGuide);
-                      }}
-                    >
-                      Open Full Checklist
-                    </button>
-                    <EmergencyButton number="112" variant="nav" label="Call 112" guideId={matchedGuide.id} />
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
-      )}
+      </section>
+
+      {/* ================= CPR & KIT TOOLKIT SECTION ================= */}
+      <section id="tools" style={{ paddingTop: "14px" }}>
+        <div className="wrap">
+          <div className="sec-head">
+            <h2>{copy.toolH || "Emergency Tools"}</h2>
+            <p>{copy.toolP || "Built-in emergency utilities — zero downloads, zero internet required."}</p>
+          </div>
+
+          <div className="cpr">
+            {/* CPR Rhythm Helper */}
+            <div className="cprbox">
+              <h3>{copy.cprT || "CPR Rhythm Helper"}</h3>
+              <p>
+                {copy.cprP ||
+                  "Push hard and fast to this steady beat in the centre of the chest — around 110 times a minute. Tap Start and follow the pulse."}
+              </p>
+              <div className={`pulse ${cprBeating ? "beat" : ""}`} id="pulse" aria-live="polite">
+                {cprRunning ? cprCount : "110"}
+              </div>
+              <div style={{ fontWeight: 800, fontSize: "14px", color: "var(--muted)", marginBottom: "14px" }}>
+                {cprRunning
+                  ? `${cprCount} ${isHi ? "दबाव (Compressions)" : "compressions"}`
+                  : isHi
+                  ? "110 दबाव प्रति मिनट की लय"
+                  : "110 Beats Per Minute Target"}
+              </div>
+              <button type="button" onClick={toggleCPR} id="cprBtn">
+                {cprRunning ? "■ Stop" : "▶ Start CPR Beat"}
+              </button>
+            </div>
+
+            {/* First-Aid Kit Checklist */}
+            <div className="kit">
+              <h3>{copy.kitT || "First-Aid Kit Checklist"}</h3>
+              <p>
+                {copy.kitP || "Keep these essential supplies prepared at home, car or travel — check off what you have today."}
+              </p>
+
+              <div className="kit-tabs" style={{ marginTop: "14px" }}>
+                {[
+                  { key: "home", label: isHi ? "घर (Home)" : "Home Kit" },
+                  { key: "travel", label: isHi ? "सफ़र (Travel)" : "Travel Kit" },
+                  { key: "car", label: isHi ? "गाड़ी (Car)" : "Car Kit" },
+                  { key: "kids", label: isHi ? "बच्चे (Kids)" : "Baby & Kids Kit" }
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    className={kitType === tab.key ? "on" : ""}
+                    onClick={() => setKitType(tab.key)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="kit-progress" style={{ marginTop: "14px" }}>
+                <div className="kit-progress-top">
+                  <span>{currentKitData.label} — {haveCount} of {kitItems.length} items ready</span>
+                  <span>{kitPct}% ready{kitPct === 100 ? " 🎉" : ""}</span>
+                </div>
+                <div className="bar">
+                  <i style={{ width: `${kitPct}%` }}></i>
+                </div>
+              </div>
+
+              <div className="kit-grid" style={{ marginTop: "14px" }}>
+                {kitItems.map((item, idx) => {
+                  const has = !!kitHave[kitKey(item)];
+                  return (
+                    <div key={idx} className={`kitem ${has ? "have" : ""}`}>
+                      <div className="top">
+                        <h4>{item[0]}</h4>
+                        <span className={`tag ${item[3] === "ess" ? "ess" : "good"}`}>
+                          {item[3] === "ess" ? "ESSENTIAL" : "GOOD TO HAVE"}
+                        </span>
+                      </div>
+                      <p>
+                        <b style={{ color: "var(--dark)" }}>Qty: {item[1]}</b> — {item[2]}
+                      </p>
+                      <button
+                        type="button"
+                        className="havebtn"
+                        onClick={() => toggleKitItem(idx)}
+                      >
+                        {has ? "✓ I have this" : "I have this"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="kit-actions">
+                <button type="button" className="btn" onClick={copyShoppingList}>
+                  ⧉ {isHi ? "मिसिंग सामान कॉपी करें" : "Copy Shopping List"}
+                </button>
+                <button type="button" className="btn" onClick={downloadKitList}>
+                  ↓ {isHi ? "किट डाउनलोड करें" : "Download Checklist"}
+                </button>
+                <button type="button" className="btn" onClick={resetKit}>
+                  ↺ {isHi ? "रीसेट" : "Reset Kit"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= HELPLINES SECTION ================= */}
+      <section id="helplines" style={{ paddingTop: "10px" }}>
+        <div className="wrap">
+          <div className="sec-head">
+            <h2>{copy.helpH || "India Emergency Helplines"}</h2>
+            <p>{copy.helpP || "Tap any number to call. All are free, 24×7."}</p>
+          </div>
+          <div className="phones">
+            <div className="phone">
+              <div className="num">112</div>
+              <h3>{copy.p1t || "National Emergency"}</h3>
+              <p>{copy.p1p || "Police, fire and ambulance — one number for all emergencies across India."}</p>
+              <a className="btn red" href="tel:112">
+                📞 Call 112
+              </a>
+            </div>
+            <div className="phone">
+              <div className="num">108</div>
+              <h3>{copy.p2t || "Ambulance"}</h3>
+              <p>{copy.p2p || "Free government ambulance service in most states."}</p>
+              <a className="btn red" href="tel:108">
+                📞 Call 108
+              </a>
+            </div>
+            <div className="phone">
+              <div className="num">102</div>
+              <h3>{copy.p3t || "Medical Transport"}</h3>
+              <p>{copy.p3p || "Ambulance / patient transport helpline, including pregnancy cases."}</p>
+              <a className="btn red" href="tel:102">
+                📞 Call 102
+              </a>
+            </div>
+            <div className="phone">
+              <div className="num">1091</div>
+              <h3>{copy.p4t || "Women Helpline"}</h3>
+              <p>{copy.p4p || "Help and support for women in distress."}</p>
+              <a className="btn red" href="tel:1091">
+                📞 Call 1091
+              </a>
+            </div>
+            <div className="phone">
+              <div className="num">1098</div>
+              <h3>{copy.p5t || "Child Helpline"}</h3>
+              <p>{copy.p5p || "CHILDLINE — for any child in danger or in need of care."}</p>
+              <a className="btn red" href="tel:1098">
+                📞 Call 1098
+              </a>
+            </div>
+            <div className="phone">
+              <div className="num">1075</div>
+              <h3>{copy.p6t || "Health Helpline"}</h3>
+              <p>{copy.p6p || "National health helpline for medical information and guidance."}</p>
+              <a className="btn red" href="tel:1075">
+                📞 Call 1075
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= ABOUT & FAQ SECTION ================= */}
+      <section id="about-faq" style={{ paddingTop: "10px" }} aria-labelledby="aboutFaqHeading">
+        <div className="wrap">
+          <div className="faqwrap">
+            <div className="sec-head">
+              <h2 id="aboutFaqHeading">{copy.faqH || "About & FAQ"}</h2>
+              <p>{copy.aboutSub || "What Suraksha is, how it works offline, and the questions people ask most."}</p>
+            </div>
+            <div className="about-card">
+              <h3>{copy.aboutT || "About Suraksha"}</h3>
+              <p>
+                {copy.aboutP ||
+                  "Suraksha is an offline-first first-aid field manual for India. It gives clear, step-by-step help for 12 common emergencies — in Hindi and English — right on your device, with no internet, no login and no waiting. It is made for the first few minutes of an emergency: the time before an ambulance or doctor can reach you. Suraksha does not replace medical care — in any serious emergency, call 112 first, then follow the steps while help is on the way."}
+              </p>
+            </div>
+            <details>
+              <summary>{isHi ? I18N.hi.q1 : "Does Suraksha really work without internet?"}</summary>
+              <p>
+                {isHi
+                  ? I18N.hi.a1
+                  : "Yes. The Ask box and all 12 guides run on this page itself — once the page has loaded, you can switch to airplane mode and everything still works. Only phone calls need network, like any call."}
+              </p>
+            </details>
+            <details>
+              <summary>{isHi ? I18N.hi.q2 : "Can I ask in Hindi or Hinglish?"}</summary>
+              <p>
+                {isHi
+                  ? I18N.hi.a2
+                  : "Yes. Try “saap ne kaata”, “haath jal gaya”, “khoon beh raha hai” or “लू लग गई”. Suraksha understands English, Hinglish and Devanagari, and the हिंदी button switches the whole page to Hindi."}
+              </p>
+            </details>
+            <details>
+              <summary>{isHi ? I18N.hi.q3 : "Does Suraksha replace a doctor?"}</summary>
+              <p>
+                {isHi
+                  ? I18N.hi.a3
+                  : "No. Suraksha gives first aid — the help you give in the first minutes before medical help arrives. For anything serious, always call 112 and get the person to a hospital."}
+              </p>
+            </details>
+            <details>
+              <summary>{isHi ? I18N.hi.q4 : "Can I hear the steps instead of reading them?"}</summary>
+              <p>
+                {isHi
+                  ? I18N.hi.a4
+                  : "Yes. Open any guide or ask a question, then tap “Listen to steps”. Your phone reads the steps aloud in Hindi or English, so your hands stay free."}
+              </p>
+            </details>
+            <details>
+              <summary>{isHi ? I18N.hi.q5 : "What emergencies does Suraksha cover?"}</summary>
+              <p>
+                {isHi
+                  ? I18N.hi.a5
+                  : "12 emergencies: snake bite, burns, choking, CPR (no breathing), heavy bleeding, fracture, heat stroke (loo), heart attack, electric shock, drowning, seizure / fit, and poisoning. Tap “Emergency Guides” above to open any of them, or type what happened in the Ask box."}
+              </p>
+            </details>
+            <details>
+              <summary>{isHi ? I18N.hi.q6 : "What should I say when I call 112?"}</summary>
+              <p>
+                {isHi
+                  ? I18N.hi.a6
+                  : "Speak slowly and say, in this order: (1) where you are — city, area and a nearby landmark, (2) what happened, (3) how many people are hurt and their condition, and (4) your phone number. Follow the operator’s instructions and stay on the line until they say you can cut the call."}
+              </p>
+            </details>
+            <details>
+              <summary>{isHi ? I18N.hi.q7 : "How does Madad SMS work?"}</summary>
+              <p>
+                {isHi
+                  ? I18N.hi.a7
+                  : "Save a family or friend’s number in the Madad SMS section above. In an emergency, tap “Madad SMS Bhejo” — Suraksha gets your GPS location and opens your phone’s SMS app with “Madad chahiye, main yahan hoon” plus a Google Maps location link ready to send. SMS does not need internet, so it works offline too — you just need mobile network for the SMS itself, and Location ON for the map link."}
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= TOAST NOTIFICATION ================= */}
+      <div className={`toast ${toastMsg ? "show" : ""}`} id="toast" role="status">
+        {toastMsg}
+      </div>
     </main>
   );
 }
