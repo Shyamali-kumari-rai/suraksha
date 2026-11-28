@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useLanguage } from "../context/LanguageContext";
 import { GUIDES, KITS, I18N } from "../utils/data";
 import { askSurakshaHybrid } from "../services/ai/hybridRouter";
+import MadadLocationTracker from "../components/MadadLocationTracker";
 
 export default function Homes() {
   const { lang, copy } = useLanguage();
@@ -311,6 +312,37 @@ export default function Homes() {
   const [madadStatus, setMadadStatus] = useState("");
   const [madadSending, setMadadSending] = useState(false);
 
+  const [madadLocation, setMadadLocation] = useState(() => {
+    try {
+      const saved = localStorage.getItem("suraksha_madad_location");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [madadLandmark, setMadadLandmark] = useState(() => {
+    try {
+      return localStorage.getItem("suraksha_madad_landmark") || "";
+    } catch {
+      return "";
+    }
+  });
+
+  const handleSetMadadLocation = (coords) => {
+    setMadadLocation(coords);
+    try {
+      localStorage.setItem("suraksha_madad_location", JSON.stringify(coords));
+    } catch {}
+  };
+
+  const handleSetMadadLandmark = (val) => {
+    setMadadLandmark(val);
+    try {
+      localStorage.setItem("suraksha_madad_landmark", val);
+    } catch {}
+  };
+
   const cleanPhone = (p) => (p || "").replace(/[^\d+]/g, "");
   const isValidPhone = (p) => {
     const d = p.replace(/\D/g, "");
@@ -361,6 +393,47 @@ export default function Homes() {
     showToast(isHi ? "Number hata diya gaya" : "Number removed");
   };
 
+  // Format phone for WhatsApp wa.me links (default India +91 for 10-digit numbers)
+  const formatWhatsAppPhone = (phone) => {
+    const digits = (phone || "").replace(/\D/g, "");
+    if (digits.length === 10) return `91${digits}`;
+    return digits;
+  };
+
+  const handleSendWhatsApp = (targetContact = null) => {
+    const recipient = targetContact || madadContacts[0] || null;
+    const lat = madadLocation?.lat != null ? madadLocation.lat.toFixed(6) : null;
+    const lng = madadLocation?.lng != null ? madadLocation.lng.toFixed(6) : null;
+
+    let msg = "🆘 *MADAD CHAHIYE — EMERGENCY*\nMain yahan hoon, please help!";
+    if (lat !== null && lng !== null) {
+      msg += `\n📍 Live Location: https://maps.google.com/?q=${lat},${lng}`;
+    } else {
+      msg += "\n📍 Location link: Please call me right now to check where I am.";
+    }
+    if (madadLandmark && madadLandmark.trim()) {
+      msg += `\n🏠 Landmark: ${madadLandmark.trim()}`;
+    }
+    msg += "\n— Suraksha Madad";
+
+    const waPhone = recipient ? formatWhatsAppPhone(recipient.phone) : "";
+    const waUrl = waPhone
+      ? `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`
+      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+
+    setMadadStatus(
+      recipient
+        ? isHi
+          ? `💬 ${recipient.name} के लिए WhatsApp खुल रहा है — लोकेशन के साथ मैसेज तैयार है, बस Send दबाएँ।`
+          : `💬 Opening WhatsApp for ${recipient.name} — your location message is ready, just tap Send.`
+        : isHi
+        ? "💬 WhatsApp खुल रहा है — किसी भी कॉन्टैक्ट को चुनकर लोकेशन के साथ मैसेज भेजें।"
+        : "💬 Opening WhatsApp — pick a contact or group to send your live location message."
+    );
+
+    window.open(waUrl, "_blank", "noopener,noreferrer");
+  };
+
   const handleSendMadadSMS = () => {
     if (!madadContacts.length) {
       showToast(isHi ? "Pehle family ka number save karein" : "Save a family number first");
@@ -390,6 +463,9 @@ export default function Homes() {
       } else {
         msg += "\n(Meri location nahi mil payi — please mujhe call karke poochhein main kahan hoon)";
       }
+      if (madadLandmark && madadLandmark.trim()) {
+        msg += `\nLandmark: ${madadLandmark.trim()}`;
+      }
       msg += "\n— Suraksha Madad SMS";
 
       const href = `sms:${numbers}?&body=${encodeURIComponent(msg)}`;
@@ -409,7 +485,13 @@ export default function Homes() {
       }, 600);
     };
 
-    if (!navigator.geolocation) {
+    // If exact location is already locked via GPS or Map Pin, send immediately!
+    if (madadLocation && madadLocation.lat != null && madadLocation.lng != null) {
+      finishSMS(madadLocation.lat.toFixed(6), madadLocation.lng.toFixed(6));
+      return;
+    }
+
+    if (!navigator.geolocation || !window.isSecureContext) {
       finishSMS(null, null);
       return;
     }
@@ -941,18 +1023,37 @@ export default function Homes() {
                       <b>{c.name}</b>
                       <span>{c.phone}</span>
                     </div>
-                    <button
-                      type="button"
-                      className="madad-remove"
-                      onClick={() => handleRemoveMadadContact(i)}
-                      aria-label="Remove number"
-                    >
-                      ✕
-                    </button>
+                    <div className="madad-item-actions">
+                      <button
+                        type="button"
+                        className="madad-item-wa"
+                        onClick={() => handleSendWhatsApp(c)}
+                        aria-label={`Send WhatsApp to ${c.name}`}
+                      >
+                        💬 WhatsApp
+                      </button>
+                      <button
+                        type="button"
+                        className="madad-remove"
+                        onClick={() => handleRemoveMadadContact(i)}
+                        aria-label="Remove number"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
+
+            <MadadLocationTracker
+              isHi={isHi}
+              location={madadLocation}
+              setLocation={handleSetMadadLocation}
+              landmark={madadLandmark}
+              setLandmark={handleSetMadadLandmark}
+              onToast={showToast}
+            />
 
             <button
               type="button"
@@ -963,6 +1064,20 @@ export default function Homes() {
             >
               <span aria-hidden="true">🆘</span>
               <span>{madadSending ? (isHi ? "📍 लोकेशन ले रहे हैं…" : "📍 Getting location…") : copy.madadSend || "Madad SMS Bhejo — Location ke Saath"}</span>
+            </button>
+
+            <button
+              type="button"
+              className="madad-wa"
+              id="madadWaBtn"
+              onClick={() => handleSendWhatsApp(null)}
+            >
+              <span aria-hidden="true">💬</span>
+              <span>
+                {isHi
+                  ? "WhatsApp पर मदद भेजें — लोकेशन के साथ"
+                  : "Send Madad on WhatsApp — With Live Location"}
+              </span>
             </button>
 
             {madadStatus && (

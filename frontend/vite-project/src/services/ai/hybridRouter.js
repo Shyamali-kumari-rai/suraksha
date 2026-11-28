@@ -52,7 +52,7 @@ export async function askSurakshaHybrid(query) {
   if (matches.length > 0) {
     const top = matches[0];
     const title = isHi ? top.hi : top.en;
-    const steps = isHi ? top.stepsHi : top.steps;
+    const steps = (isHi ? (top.hiSteps || top.stepsHi) : (top.enSteps || top.steps)) || [];
 
     const formattedSteps = steps.map((s, idx) => `${idx + 1}. ${s}`).join("\n");
     const responseText = `${title}\n\n${formattedSteps}\n\nIn a serious emergency, call 112 immediately.`;

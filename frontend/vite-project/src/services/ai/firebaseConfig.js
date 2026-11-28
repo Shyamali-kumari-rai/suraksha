@@ -1,4 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAnalytics, isSupported as isAnalyticsSupported } from "firebase/analytics";
 import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 
 // App Check debug token enabled for local & staging development
@@ -6,18 +7,33 @@ if (typeof self !== "undefined") {
   self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
 }
 
-// [PASTE YOUR firebaseConfig HERE]
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: import.meta.env?.VITE_FIREBASE_API_KEY || "AIzaSy_SURAKSHA_DEMO_KEY",
-  authDomain: import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN || "suraksha-offline-first-aid.firebaseapp.com",
-  projectId: import.meta.env?.VITE_FIREBASE_PROJECT_ID || "suraksha-offline-first-aid",
-  storageBucket: import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET || "suraksha-offline-first-aid.appspot.com",
-  messagingSenderId: import.meta.env?.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789012",
-  appId: import.meta.env?.VITE_FIREBASE_APP_ID || "1:123456789012:web:abcdef123456"
+  apiKey: "AIzaSyA21xkJMbQEOwhWtDdJejJDagb2q0CQKNo",
+  authDomain: "suraksha-first-aid.firebaseapp.com",
+  projectId: "suraksha-first-aid",
+  storageBucket: "suraksha-first-aid.firebasestorage.app",
+  messagingSenderId: "627383890589",
+  appId: "1:627383890589:web:6c8140382d1eb41629da74",
+  measurementId: "G-GN8KZJSSTT"
 };
 
+// Initialize Firebase
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
+// Initialize Analytics safely in browser environments
+export let analytics = null;
+if (typeof window !== "undefined") {
+  isAnalyticsSupported()
+    .then((supported) => {
+      if (supported) {
+        analytics = getAnalytics(app);
+      }
+    })
+    .catch(() => {});
+}
+
+// Initialize App Check (debug token active locally)
 export let appCheck = null;
 if (typeof window !== "undefined") {
   try {
