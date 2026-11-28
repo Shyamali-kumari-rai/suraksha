@@ -24,7 +24,6 @@ export default function Navbar() {
           <a href="#madad">{copy.nMadad || "Madad SMS"}</a>
           <a href="#guides">{copy.n2 || "Emergency Guides"}</a>
           <a href="#how">{copy.n3 || "How It Works"}</a>
-          <a href="#tools">{copy.n4 || "CPR & Kit"}</a>
           <a href="#helplines">{copy.n5 || "Helplines"}</a>
         </nav>
 
